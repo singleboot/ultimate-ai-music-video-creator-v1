@@ -7,7 +7,30 @@ echo   Ultimate Music Video Creator v1
 echo ============================================
 echo.
 
+REM Ensure input directories exist
+mkdir "%~dp0input\fulllyrics" 2>nul
+mkdir "%~dp0input\themestyle" 2>nul
+mkdir "%~dp0input\storyconcept" 2>nul
+mkdir "%~dp0input\subjectandscenes" 2>nul
+mkdir "%~dp0output\Aceaudio" 2>nul
+
 REM Check if setup has been done
+if not exist "comfyui\main.py" if exist "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\main.py" (
+    echo [SETUP] Auto-linking ComfyUI...
+    mklink /J "%~dp0comfyui\models" "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\models" >nul 2>&1
+    mklink /J "%~dp0comfyui\custom_nodes" "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\custom_nodes" >nul 2>&1
+    mklink /J "%~dp0comfyui\input" "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\input" >nul 2>&1
+    mklink /J "%~dp0comfyui\output" "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\output" >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\*.py" "%~dp0comfyui\" /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\web" "%~dp0comfyui\web\" /E /I /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\comfy" "%~dp0comfyui\comfy\" /E /I /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\app" "%~dp0comfyui\app\" /E /I /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\nodes.py" "%~dp0comfyui\" /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\folder_paths.py" "%~dp0comfyui\" /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\execution.py" "%~dp0comfyui\" /Y >nul 2>&1
+    xcopy "F:\001 Comfyui Easy installer\ComfyUI-Easy-Install\ComfyUI-Easy-Install\ComfyUI\server.py" "%~dp0comfyui\" /Y >nul 2>&1
+    echo [OK] ComfyUI linked.
+)
 if not exist "comfyui\main.py" (
     echo [SETUP] First-time setup required...
     call setup.bat
