@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "Ultimate Music Video Creator v1",
+    "version": "1.0.0",
+    "port": 8000,
+    "host": "127.0.0.1"
+  },
+  "frontend": {
+    "port": 3000,
+    "host": "127.0.0.1"
+  },
+  "comfyui": {
+    "port": 8188,
+    "host": "127.0.0.1",
+    "path": "",
+    "auto_start": true,
+    "start_timeout": 120
+  },
+  "workflows": {
+    "ace_audio_cover": "workflows/ace_audio_cover.json",
+    "prompt_creator": "workflows/prompt_creator.json",
+    "i2v": "workflows/i2v.json",
+    "t2v": "workflows/t2v.json"
+  },
+  "defaults": {
+    "fps": 24,
+    "width": 1920,
+    "height": 1080,
+    "language": "en",
+    "seed": -1,
+    "steps": 30,
+    "cfg": 1.0
+  },
+  "languages": {
+    "whisper": ["auto", "english", "hindi", "tamil", "telugu", "bengali", "marathi", "gujarati", "urdu", "kannada", "malayalam", "punjabi", "odia"],
+    "ace_audio": ["en", "hi", "bn", "ta", "te", "pa", "ur", "ne", "sa", "zh", "ja", "ko", "es", "fr", "de"],
+    "fish_tts": ["auto", "en", "hi", "bn", "ta", "te", "kn", "ml", "ur", "gu", "mr", "pa", "ne", "sa"]
+  }
+}

@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# ComfyUI (linked via junction, not stored)
+comfyui/
+
+# Generated output
+output/*
+!output/.gitkeep
+
+# Input text files
+input/*/*.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (user-specific)
+config.local.json
+
+# Logs
+*.log
+logs/

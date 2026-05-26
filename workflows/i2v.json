@@ -1,0 +1,2079 @@
+{
+  "181": {
+    "inputs": {
+      "frame_rate": [
+        "794",
+        0
+      ],
+      "positive": [
+        "231",
+        0
+      ],
+      "negative": [
+        "233",
+        0
+      ]
+    },
+    "class_type": "LTXVConditioning",
+    "_meta": {
+      "title": "LTXVConditioning"
+    }
+  },
+  "231": {
+    "inputs": {
+      "text": [
+        "885:908",
+        0
+      ],
+      "clip": [
+        "271:216",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "233": {
+    "inputs": {
+      "conditioning": [
+        "231",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "235": {
+    "inputs": {
+      "noise_seed": [
+        "736:449",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "273": {
+    "inputs": {
+      "frame_rate": [
+        "795",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": [
+        "634",
+        0
+      ],
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "530",
+        0
+      ],
+      "audio": [
+        "297",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "297": {
+    "inputs": {
+      "start_time": [
+        "218:287",
+        4
+      ],
+      "end_time": [
+        "218:287",
+        5
+      ],
+      "audio": [
+        "736:691",
+        0
+      ]
+    },
+    "class_type": "VRGDG_AudioCrop",
+    "_meta": {
+      "title": "✂️ VRGDG Audio Crop"
+    }
+  },
+  "311": {
+    "inputs": {
+      "audioUI": "",
+      "audio": [
+        "218:287",
+        13
+      ]
+    },
+    "class_type": "PreviewAudio",
+    "_meta": {
+      "title": "Preview Audio for this run"
+    }
+  },
+  "437": {
+    "inputs": {
+      "value": [
+        "736:725:39",
+        1
+      ]
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "FolderName"
+    }
+  },
+  "530": {
+    "inputs": {
+      "frames_per_scene": [
+        "218:287",
+        8
+      ],
+      "pre_frames": [
+        "218:287",
+        9
+      ],
+      "chunk_index": [
+        "218:287",
+        2
+      ],
+      "fps": [
+        "736:424",
+        0
+      ],
+      "images": [
+        "236:196",
+        0
+      ]
+    },
+    "class_type": "VRGDG_TrimImageBatch_SRTOnly",
+    "_meta": {
+      "title": "VRGDG_TrimImageBatch_SRTOnly"
+    }
+  },
+  "543": {
+    "inputs": {
+      "json_string": "{\n  \"Prompt1\": \"A female with platinum blonde hair, wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. neon-lit city street: A holographic clock face shatters into glowing digital fragments as time seems to accelerate through the bustling street.\",\n  \"Prompt2\": \"A female with platinum blonde hair, wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. underground basement venue: A sudden burst of electric pink light erupts as people leap upward in a synchronized, gravity-defying motion.\",\n  \"Prompt3\": \"A female with platinum blonde hair, wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. underground basement venue: The air fills with swirling cyan particles and strobe lights as the crowd moves in a wild, rhythmic frenzy.\",\n  \"Prompt4\": \"A female with platinum blonde hair, wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. rooftop at night: The scene ascends through a thick layer of glowing clouds toward a massive, shimmering sky-high ceiling of light.\",\n  \"Prompt5\": \"A female with platinum blonde hair, wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. rooftop at night: A massive pulse of white and violet energy surges outward, flooding the skyline with an unstoppable, euphoric glow.\"\n}",
+      "index": [
+        "218:287",
+        2
+      ]
+    },
+    "class_type": "VRGDG_PromptSplitter_General",
+    "_meta": {
+      "title": "VRGDG_PromptSplitter_General-LTX prompts"
+    }
+  },
+  "632": {
+    "inputs": {
+      "filename_prefix": [
+        "635",
+        0
+      ],
+      "images": [
+        "797:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "634": {
+    "inputs": {
+      "output_folder": [
+        "218:287",
+        11
+      ],
+      "chunk_index": [
+        "218:287",
+        2
+      ],
+      "base_name": "video",
+      "overwrite_mode": [
+        "218:287",
+        12
+      ]
+    },
+    "class_type": "VRGDG_BuildVideoOutputPath_General_SRT",
+    "_meta": {
+      "title": "VRGDG Build Video Output Path (General_SRT)"
+    }
+  },
+  "635": {
+    "inputs": {
+      "string_a": [
+        "218:287",
+        11
+      ],
+      "string_b": "z-image\\images",
+      "delimiter": "\\"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "640": {
+    "inputs": {
+      "threshold": [
+        "218:287",
+        7
+      ],
+      "group_list": "-1",
+      "video_folder": [
+        "218:287",
+        11
+      ],
+      "trigger": [
+        "273",
+        0
+      ],
+      "audio": [
+        "736:691",
+        0
+      ]
+    },
+    "class_type": "VRGDG_CreateFinalVideo_SRT",
+    "_meta": {
+      "title": "VRGDG_CreateFinalVideo_SRT"
+    }
+  },
+  "686": {
+    "inputs": {
+      "trigger": [
+        "690",
+        0
+      ],
+      "refresh": [
+        "690",
+        0
+      ]
+    },
+    "class_type": "VRGDG_LatestSRTAutoLoader",
+    "_meta": {
+      "title": "VRGDG Latest SRT Auto Loader"
+    }
+  },
+  "690": {
+    "inputs": {
+      "value": -857316833464885
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "737": {
+    "inputs": {
+      "text_0": "Heartbeat_Concrete",
+      "text": [
+        "736:725:39",
+        1
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "Folder Name display"
+    }
+  },
+  "738": {
+    "inputs": {
+      "text_0": "F:\\001 Comfyui Easy installer\\ComfyUI-Easy-Install\\ComfyUI-Easy-Install\\ComfyUI\\output\\VRGDG_AudioFiles\\Heartbeat_Concrete.mp3",
+      "text": [
+        "736:725:39",
+        0
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "Audio File Path display"
+    }
+  },
+  "755": {
+    "inputs": {
+      "text_0": "F:\\001 Comfyui Easy installer\\ComfyUI-Easy-Install\\ComfyUI-Easy-Install\\ComfyUI\\custom_nodes\\comfyui-vrgamedevgirl\\srt_files\\Heartbeat_Concrete_254.srt",
+      "text": [
+        "686",
+        0
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "VRGDG_ShowText"
+    }
+  },
+  "758": {
+    "inputs": {
+      "text_0": "4",
+      "value": [
+        "218:287",
+        2
+      ]
+    },
+    "class_type": "VRGDG_ShowAny",
+    "_meta": {
+      "title": "Current index"
+    }
+  },
+  "760": {
+    "inputs": {
+      "text_0": "91",
+      "value": [
+        "218:287",
+        8
+      ]
+    },
+    "class_type": "VRGDG_ShowAny",
+    "_meta": {
+      "title": "frames count for this run"
+    }
+  },
+  "762": {
+    "inputs": {
+      "text_0": "🎬 SRT MODE\nRendering chunk 5 / 5\nOutput folder: Heartbeat_Concrete_2026-05-21_00-57-06",
+      "text": [
+        "218:287",
+        6
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "READ ME"
+    }
+  },
+  "794": {
+    "inputs": {
+      "value": [
+        "736:424",
+        0
+      ]
+    },
+    "class_type": "VRGDG_IntToFloat",
+    "_meta": {
+      "title": "VRGDG_IntToFloat"
+    }
+  },
+  "795": {
+    "inputs": {
+      "value": [
+        "736:424",
+        0
+      ]
+    },
+    "class_type": "VRGDG_IntToFloat",
+    "_meta": {
+      "title": "VRGDG_IntToFloat"
+    }
+  },
+  "805": {
+    "inputs": {
+      "model_file": "supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf",
+      "mmproj_file": "mmproj-BF16.gguf",
+      "task_preset": "custom",
+      "custom_instructions": "Create one text-to-image prompt from the user input.\n\nUser input includes:\n- subject\n- one current visual prompt\n- a style/theme\n\nUse all parts of the user input together.\n\nPriority:\n- Use the current visual prompt as the main scene foundation.\n- Keep the main action, subject, and setting from the current visual prompt unless the user clearly changes them.\n- Use the style/theme to control the visual aesthetic, color grading, lighting, mood, wardrobe refinement, environment design, and overall cinematic treatment.\n- Use the provided subject as the main subject of the image.\n\nRules:\n- Create one polished text-to-image prompt.\n- Treat the current visual prompt as the base scene description.\n- Expand and improve that scene using the style/theme.\n- Keep the image prompt concrete and visual.\n- Use the style/theme to influence color palette, tone, texture, lighting style, atmosphere, and production quality.\n- If the current visual prompt includes concrete objects, actions, reflections, or setting details, keep them visible in the final prompt.\n- Do not use metaphors, abstract symbolic wording, or non-visible language.\n- Do not use phrases like \"metaphorical thunder,\" \"invisible storm clouds,\" \"lightness of being,\" or other poetic abstractions.\n- Describe only things that can be seen in the final image.\n- Keep the result as one strong image prompt, not a summary.\n- Correct obvious typos, malformed words, and broken phrases from the current visual prompt before using it.\n- Fix spelling errors in character, clothing, objects, and setting details.\n- Preserve the intended meaning while cleaning the wording.\n- Do not mention that typos were fixed.\n- Do not explain your choices.\n- Only send the final prompt text.\n\nUse this exact format:\n\nA high resolution cinematic photograph of a [subject], [action or pose based primarily on the current visual prompt], in [environment/location shaped by the current visual prompt], during [time of day]. The subject is wearing [main outfit from the current visual prompt refined by the style/theme], [shoes/accessories from the current visual prompt refined by the style/theme], and [additional visible style details inspired by the style/theme]. Their hair is [hair color], [hair length/style], and [movement or texture]. The environment is [visual style of location from the current visual prompt shaped by the style/theme] with [background details that visibly represent the current visual prompt], [lighting and color grading details that match the style/theme], and [surface/reflection/material details connected to the current visual prompt and style/theme]. Camera is [camera angle] with a [lens type or framing]. The weather is [weather condition appropriate to the scene], with [atmospheric detail influenced by the style/theme], creating a [mood/style] mood.\n\n[subject] = character gender! don't just say \"subject\"!\n\nOnly send the final prompt text. Do not include labels, notes, quotes, or extra text.\n\nUser Input:\n",
+      "user_input": [
+        "806",
+        0
+      ],
+      "trigger_word": "",
+      "image_count": 0,
+      "advanced": false,
+      "unload_after_run": true,
+      "n_ctx": 7936,
+      "n_gpu_layers": 99,
+      "n_threads": 8,
+      "chat_format": "",
+      "temperature": 0.4,
+      "top_p": 0.8,
+      "max_new_tokens": 32000
+    },
+    "class_type": "VRGDG_SuperGemmaGGUFChat",
+    "_meta": {
+      "title": "🧠 VRGDG SuperGemma GGUF Chat 🧠"
+    }
+  },
+  "806": {
+    "inputs": {
+      "string_count": 6,
+      "delimiter": "\\n\\n",
+      "string_1": "\nSubject:",
+      "string_2": [
+        "821",
+        0
+      ],
+      "string_3": "\ncurrent visual prompt",
+      "string_4": [
+        "543",
+        0
+      ],
+      "string_5": "\nStyle/Theme:",
+      "string_6": [
+        "817",
+        0
+      ],
+      "string_7": "\nStory Idea:",
+      "string_8": "\n",
+      "string_9": "",
+      "string_10": "",
+      "string_11": "",
+      "string_12": "",
+      "string_13": "",
+      "string_14": "",
+      "string_15": "",
+      "string_16": "",
+      "string_17": "",
+      "string_18": "",
+      "string_19": "",
+      "string_20": ""
+    },
+    "class_type": "VRGDG_MultiStringConcat",
+    "_meta": {
+      "title": "VRGDG_MultiStringConcat"
+    }
+  },
+  "810": {
+    "inputs": {
+      "text_0": "A high resolution cinematic photograph of a woman, standing still as a massive pulse of white and violet energy surges outward from her, in a rooftop at night, during the midnight hour. The subject is wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. Her hair is platinum blonde, short and textured, and caught in a gentle upward drift from the energy surge. The environment is a vast urban rooftop with a skyline flooded with an unstoppable, euphoric glow of white and violet light, featuring soft pale blue shadows and deep red accents in the distant city lights, and reflecting off the metallic surfaces of the jacket and surrounding structures. Camera is a medium shot with a wide-angle lens. The weather is clear, with a shimmering atmospheric haze of light particles, creating a tense, intimate, and cold emotional mood.",
+      "text": [
+        "867:866",
+        0
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "VRGDG_ShowText- IMAGE TO VIDEO PROMPT"
+    }
+  },
+  "811": {
+    "inputs": {
+      "model_file": "supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf",
+      "mmproj_file": "mmproj-BF16.gguf",
+      "task_preset": "custom",
+      "custom_instructions": [
+        "855",
+        0
+      ],
+      "user_input": [
+        "805",
+        0
+      ],
+      "trigger_word": "",
+      "image_count": 0,
+      "advanced": false,
+      "unload_after_run": true,
+      "n_ctx": 7936,
+      "n_gpu_layers": 99,
+      "n_threads": 8,
+      "chat_format": "",
+      "temperature": 0.4,
+      "top_p": 0.8,
+      "max_new_tokens": 32000
+    },
+    "class_type": "VRGDG_SuperGemmaGGUFChat",
+    "_meta": {
+      "title": "🧠 VRGDG SuperGemma GGUF Chat 🧠"
+    }
+  },
+  "812": {
+    "inputs": {
+      "text_0": "A female with platinum blonde hair, wearing a silver bomber jacket with a black crop top, ripped jeans, and high-top sneakers. rooftop at night: A massive pulse of white and violet energy surges outward, flooding the skyline with an unstoppable, euphoric glow.",
+      "text": [
+        "543",
+        0
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "VRGDG_ShowText"
+    }
+  },
+  "815": {
+    "inputs": {
+      "text_0": "The platinum blonde woman who is singing with passion on a vast urban rooftop during the midnight hour. The subject throws her arms wide as she belts out a powerful melody, her body surging with energy. Her short, textured hair and silver bomber jacket react dynamically to the outward pulse of light. The camera performs a handheld follow while maintaining a centered medium shot of her powerful performance. The surrounding city skyline and atmospheric haze react to the massive surges of white and violet energy radiating from her.",
+      "text": [
+        "885:908",
+        0
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "VRGDG_ShowText - TEXT TO VIDEO PROMPT"
+    }
+  },
+  "817": {
+    "inputs": {
+      "folder_name": "themestyle",
+      "use_most_recent": true,
+      "text_file": "themestyle.txt",
+      "folder_name_override": "",
+      "use_custom_base_path": null,
+      "custom_base_path": "",
+      "Refresh List": null
+    },
+    "class_type": "VRGDG_LoadTextAdvanced",
+    "_meta": {
+      "title": "VRGDG_LoadTextAdvanced"
+    }
+  },
+  "821": {
+    "inputs": {
+      "folder_name": "subjectandscenes",
+      "use_most_recent": true,
+      "text_file": "subjectsandscenes.txt",
+      "folder_name_override": "",
+      "use_custom_base_path": null,
+      "custom_base_path": "",
+      "Refresh List": null
+    },
+    "class_type": "VRGDG_LoadTextAdvanced",
+    "_meta": {
+      "title": "VRGDG_LoadTextAdvanced"
+    }
+  },
+  "837": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "838",
+        0
+      ],
+      "on_true": [
+        "686",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "use SRT duration file"
+    }
+  },
+  "838": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "839": {
+    "inputs": {
+      "Open Part 2 Workflow UI": null
+    },
+    "class_type": "VRGDG_Part2WorkflowUI",
+    "_meta": {
+      "title": "VRGDG Part 2 Workflow UI"
+    }
+  },
+  "842": {
+    "inputs": {
+      "use_custom_loras": false,
+      "lora_count": 1,
+      "ltx_two_pass_mode": true,
+      "lora_1": "[none]",
+      "strength_1": 1,
+      "lora_2": "[none]",
+      "strength_2": 1,
+      "lora_3": "[none]",
+      "strength_3": 1,
+      "lora_4": "[none]",
+      "strength_4": 1,
+      "lora_5": "[none]",
+      "strength_5": 1,
+      "lora_6": "[none]",
+      "strength_6": 1,
+      "lora_7": "[none]",
+      "strength_7": 1,
+      "lora_8": "[none]",
+      "strength_8": 1,
+      "lora_9": "[none]",
+      "strength_9": 1,
+      "lora_10": "[none]",
+      "strength_10": 1,
+      "lora_11": "[none]",
+      "strength_11": 1,
+      "lora_12": "[none]",
+      "strength_12": 1,
+      "lora_13": "[none]",
+      "strength_13": 1,
+      "lora_14": "[none]",
+      "strength_14": 1,
+      "lora_15": "[none]",
+      "strength_15": 1,
+      "lora_16": "[none]",
+      "strength_16": 1,
+      "lora_17": "[none]",
+      "strength_17": 1,
+      "lora_18": "[none]",
+      "strength_18": 1,
+      "lora_19": "[none]",
+      "strength_19": 1,
+      "lora_20": "[none]",
+      "strength_20": 1,
+      "model": [
+        "271:215",
+        0
+      ]
+    },
+    "class_type": "VRGDG_OptionalMultiLoraModelOnly",
+    "_meta": {
+      "title": "VRGDG Optional Multi LoRA Model Only"
+    }
+  },
+  "855": {
+    "inputs": {
+      "string_count": 3,
+      "delimiter": "\\n\\n",
+      "string_1": "Convert the user’s text-to-image prompt into a dynamic image-to-video prompt.\n\nUse the image prompt only as the visual reference. Preserve the original subject, setting, outfit, mood, atmosphere, and scene identity. Do not repeat or describe color grading, lighting style, camera photo style, or static image-quality terms unless needed for motion clarity.\n\nAdd fast, cinematic motion by giving the subject a clear action sequence, expressive face expressions and body movement, strong gestures, and intentional camera movement. Keep the subject visible and framed throughout.\n\nOutput one polished paragraph using this structure:\n\nThe [Subject] who is singing with passion in [setting/environment] during [time/weather]. The subject [dynamic performance action]. Their clothing/hair [reacts to movement]. The camera [Camera Motion] while maintaining [subject visibility]. The environment [reacts dynamically].\n\neach word in brackets should be chosen based of user input that would best fit the scene.\nNOTE: DO NOT USE ORBIT TYPE CAMERA MOTION, DO NOT USE THE WORD \"SPIN\" SUBJECT SHOULD NEVER SPIN \nSubject should always be physically singing!\n\nDo not add audio, dialogue, captions, text overlays, unrelated characters, new locations, major story changes, color style, lighting style, or image-quality descriptions. Keep it vivid, fast, cinematic, dynamic, and video-ready.\n\nUser Input, must follow: ",
+      "string_2": [
+        "902",
+        0
+      ],
+      "string_3": "\nText-to-image prompt to convert:\n",
+      "string_4": "",
+      "string_5": "",
+      "string_6": "",
+      "string_7": "",
+      "string_8": "",
+      "string_9": "",
+      "string_10": "",
+      "string_11": "",
+      "string_12": "",
+      "string_13": "",
+      "string_14": "",
+      "string_15": "",
+      "string_16": "",
+      "string_17": "",
+      "string_18": "",
+      "string_19": "",
+      "string_20": ""
+    },
+    "class_type": "VRGDG_MultiStringConcat",
+    "_meta": {
+      "title": "VRGDG_MultiStringConcat"
+    }
+  },
+  "859": {
+    "inputs": {
+      "text_0": "Camera Motion = Handheld follow\nCharacter Movement/Motion = Throws arms wide",
+      "text": [
+        "902",
+        0
+      ]
+    },
+    "class_type": "VRGDG_ShowText",
+    "_meta": {
+      "title": "Preview Advanced settings"
+    }
+  },
+  "891": {
+    "inputs": {
+      "folder_name": [
+        "736:725:39",
+        1
+      ],
+      "file_name": [
+        "736:725:39",
+        1
+      ],
+      "overwrite": false,
+      "concat": true,
+      "trigger": 0,
+      "text": [
+        "885:908",
+        0
+      ]
+    },
+    "class_type": "VRGDG_SaveTextAdvancedConcat",
+    "_meta": {
+      "title": "VRGDG_SaveTextAdvancedConcat"
+    }
+  },
+  "892": {
+    "inputs": {
+      "text_0": "{\n  \"Prompt1\": \"The female who is singing with passion in a bustling neon-lit city street during a clear, high-energy night. The subject walks toward the camera with a confident swagger while singing with intense, expressive energy. Her platinum blonde hair and metallic silver bomber jacket catch the light and ripple with her rhythmic movement. The camera performs a slow push-in while maintaining her centered, powerful frame. The environment reacts dynamically as holographic clock fragments shatter into glowing digital fragments, swirling through the air amidst shimmering light streaks.\",\n  \"Prompt2\": \"The female singer who is singing with passion in a dark underground basement venue during a high-energy party. The subject strides across the frame while singing with powerful, expressive gestures and an energetic leap. Her silver metallic bomber jacket and short platinum blonde hair react dynamically to her explosive movement. The camera tracks right while maintaining a clear view of her as she moves through the space. The environment pulses with sudden bursts of electric pink and neon blue light beams as hazy atmospheric particles swirl around the scene.\",\n  \"Prompt3\": \"The female singer who is singing with passion in a dark, gritty underground basement venue during a high-energy night. The subject leans toward the camera with an intense, soulful expression while delivering a powerful vocal performance. Her platinum blonde hair and silver metallic bomber jacket react dynamically to her rhythmic movements. The camera tracks left while maintaining a clear view of her through the wide-angle frame. The environment pulses with swirling cyan particles and flashing strobe lights that react to the beat.\",\n  \"Prompt4\": \"The female singer who is singing with passion on a futuristic rooftop during a clear, high-energy night. The subject points decisively into the lens with a powerful, charismatic gesture while her mouth moves in a soulful vocal performance. Her long platinum blonde hair and silver metallic bomber jacket ripple and catch the light with her energetic movements. The camera performs a smooth dolly backward while maintaining her centered, commanding presence. The surrounding thick, glowing clouds and the massive, shimmering ceiling of light swirl dynamically around her.\",\n  \"Prompt5\": \"The platinum blonde female who is singing with passion on a sprawling urban rooftop during a clear, electric night. The subject throws her arms wide as she belts out a powerful melody, her body surging with energy. Her silver metallic bomber jacket and short, textured hair whip wildly in the wind from the massive energy pulse. The camera performs a handheld follow while maintaining a low-angle view of her powerful silhouette. The distant city skyline and swirling particles of light react dynamically to the massive surge of white and violet energy flooding the atmosphere.\",\n  \"Prompt6\": \"The female who is singing with passion in a bustling neon-lit city street during a clear, high-energy night. The subject walks toward the camera with a confident swagger while singing with intense, expressive energy. Her platinum blonde hair and metallic silver bomber jacket catch the light and ripple with her rhythmic movement. The camera performs a slow push-in while maintaining her centered, powerful frame. The environment reacts dynamically as holographic clock fragments shatter into glowing digital fragments, swirling through the air amidst shimmering light streaks.\",\n  \"Prompt7\": \"The woman who is singing with passion in a neon-lit city street during the blue hour of night. The subject walks toward the camera with a confident swagger while belts out a powerful melody with intense facial expressions. Her silver bomber jacket and dark hair ripple with every rhythmic step and powerful breath. The camera performs a slow push-in while maintaining her centered focus. The environment shatters as glowing digital fragments of a clock face swirl and accelerate around her through the bustling street.\",\n  \"Prompt8\": \"The woman who is singing with passion in a neon-lit city street during the blue hour of night. The subject walks toward the camera with a confident swagger while belts out a powerful melody with intense facial expressions. Her silver bomber jacket and dark hair ripple with every rhythmic step and powerful breath. The camera performs a slow push-in while maintaining her centered focus. The environment shatters as glowing digital fragments of a clock face swirl and accelerate around her through the bustling street.\",\n  \"Prompt9\": \"The platinum blonde woman who is singing with passion in a dark underground basement venue during the night. The subject strides across the frame while leaping upward in a synchronized, gravity-defying motion. Her silver bomber jacket and short, textured hair whip wildly with her explosive movement. The camera tracks right with a low-angle wide-angle perspective while maintaining her centered visibility. The environment pulses with sudden bursts of electric pink light as dust particles and sharp light beams swirl through the air.\",\n  \"Prompt10\": \"The woman who is singing with passion in a dim underground basement venue during a hazy night. The subject leans toward the camera with an intense, soulful gaze while her mouth moves in a powerful vocal performance. Her platinum blonde hair and silver bomber jacket catch the flickering light as they sway with her rhythmic movements. The camera tracks left while maintaining a clear view of her as she performs. The environment reacts dynamically with swirling cyan particles and pulsing strobe lights dancing through the hazy air.\",\n  \"Prompt11\": \"The woman who is singing with passion on a rooftop during a clear, late evening. The subject points toward the lens with a powerful, emotive gesture while her mouth moves in a soulful vocal performance. Her silver bomber jacket and dark brown hair catch the light as they react to her energetic movements. The camera performs a smooth dolly backward while maintaining her centered, intimate framing. The surrounding glowing clouds and the massive, shimmering sky-high ceiling ripple and shift with the intensity of the scene.\",\n  \"Prompt12\": \"The platinum blonde woman who is singing with passion on a vast urban rooftop during the midnight hour. The subject throws her arms wide as she belts out a powerful melody, her body surging with energy. Her short, textured hair and silver bomber jacket react dynamically to the outward pulse of light. The camera performs a handheld follow while maintaining a centered medium shot of her powerful performance. The surrounding city skyline and atmospheric haze react to the massive surges of white and violet energy radiating from her.\"\n}",
+      "text": [
+        "891",
+        3
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
+    }
+  },
+  "893": {
+    "inputs": {
+      "text_0": "F:\\001 Comfyui Easy installer\\ComfyUI-Easy-Install\\ComfyUI-Easy-Install\\ComfyUI\\output\\VRGDG_TEMP\\TextFiles\\Heartbeat_Concrete\\Heartbeat_Concrete.txt",
+      "text": [
+        "891",
+        1
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
+    }
+  },
+  "898": {
+    "inputs": {
+      "value": [
+        "218:287",
+        2
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Index"
+    }
+  },
+  "899": {
+    "inputs": {
+      "value": [
+        "900",
+        0
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Random Seed"
+    }
+  },
+  "900": {
+    "inputs": {
+      "value": -443995662278646
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "902": {
+    "inputs": {
+      "picker_count": 2,
+      "joiner": "newline",
+      "preset_1": "Camera Motion",
+      "items_1": "Slow push-in\nTrack right\nTrack left\nDolly backward\nHandheld follow\nOver-the-shoulder push-in\nSlow pan right\nSlow pan left\nTilt up\nTilt down\nArc around subject\nOrbit shot\nLow-angle tracking shot\nCrane rising move\nSlow zoom-in",
+      "label_1": "Camera Motion",
+      "selection_mode_1": "index",
+      "two_item_template_1": "start with {item1} then follow with {item2}",
+      "pick_count_1": 1,
+      "preset_2": "Character Movement/Motion",
+      "items_2": "Walks toward camera with confident swagger\nStrides across the frame\nLeans toward the camera\nPoints into the lens\nThrows arms wide\nRaises both hands overhead\nRuns a hand through their hair\nSlowly backs away from the camera\nDrops to one knee\nThrows their head back\nWhips a jacket off one shoulder\nStomps forward with attitude\nTilts chin upward\nReaches toward the camera\nCollapses dramatically to the floor",
+      "label_2": "Character Movement/Motion",
+      "selection_mode_2": "index",
+      "two_item_template_2": "start with {item1} then follow with {item2}",
+      "pick_count_2": 1,
+      "preset_3": "Custom",
+      "items_3": "",
+      "label_3": "",
+      "selection_mode_3": "index",
+      "two_item_template_3": "start with {item1} then follow with {item2}",
+      "pick_count_3": 1,
+      "preset_4": "Custom",
+      "items_4": "",
+      "label_4": "",
+      "selection_mode_4": "index",
+      "two_item_template_4": "start with {item1} then follow with {item2}",
+      "pick_count_4": 1,
+      "preset_5": "Custom",
+      "items_5": "",
+      "label_5": "",
+      "selection_mode_5": "index",
+      "two_item_template_5": "start with {item1} then follow with {item2}",
+      "pick_count_5": 1,
+      "preset_6": "Custom",
+      "items_6": "",
+      "label_6": "",
+      "selection_mode_6": "index",
+      "two_item_template_6": "start with {item1} then follow with {item2}",
+      "pick_count_6": 1,
+      "preset_7": "Custom",
+      "items_7": "",
+      "label_7": "",
+      "selection_mode_7": "index",
+      "two_item_template_7": "start with {item1} then follow with {item2}",
+      "pick_count_7": 1,
+      "preset_8": "Custom",
+      "items_8": "",
+      "label_8": "",
+      "selection_mode_8": "index",
+      "two_item_template_8": "start with {item1} then follow with {item2}",
+      "pick_count_8": 1,
+      "preset_9": "Custom",
+      "items_9": "",
+      "label_9": "",
+      "selection_mode_9": "index",
+      "two_item_template_9": "start with {item1} then follow with {item2}",
+      "pick_count_9": 1,
+      "preset_10": "Custom",
+      "items_10": "",
+      "label_10": "",
+      "selection_mode_10": "index",
+      "two_item_template_10": "start with {item1} then follow with {item2}",
+      "pick_count_10": 1,
+      "preset_11": "Custom",
+      "items_11": "",
+      "label_11": "",
+      "selection_mode_11": "index",
+      "two_item_template_11": "start with {item1} then follow with {item2}",
+      "pick_count_11": 1,
+      "preset_12": "Custom",
+      "items_12": "",
+      "label_12": "",
+      "selection_mode_12": "index",
+      "two_item_template_12": "start with {item1} then follow with {item2}",
+      "pick_count_12": 1,
+      "preset_13": "Custom",
+      "items_13": "",
+      "label_13": "",
+      "selection_mode_13": "index",
+      "two_item_template_13": "start with {item1} then follow with {item2}",
+      "pick_count_13": 1,
+      "preset_14": "Custom",
+      "items_14": "",
+      "label_14": "",
+      "selection_mode_14": "index",
+      "two_item_template_14": "start with {item1} then follow with {item2}",
+      "pick_count_14": 1,
+      "preset_15": "Custom",
+      "items_15": "",
+      "label_15": "",
+      "selection_mode_15": "index",
+      "two_item_template_15": "start with {item1} then follow with {item2}",
+      "pick_count_15": 1,
+      "preset_16": "Custom",
+      "items_16": "",
+      "label_16": "",
+      "selection_mode_16": "index",
+      "two_item_template_16": "start with {item1} then follow with {item2}",
+      "pick_count_16": 1,
+      "preset_17": "Custom",
+      "items_17": "",
+      "label_17": "",
+      "selection_mode_17": "index",
+      "two_item_template_17": "start with {item1} then follow with {item2}",
+      "pick_count_17": 1,
+      "preset_18": "Custom",
+      "items_18": "",
+      "label_18": "",
+      "selection_mode_18": "index",
+      "two_item_template_18": "start with {item1} then follow with {item2}",
+      "pick_count_18": 1,
+      "preset_19": "Custom",
+      "items_19": "",
+      "label_19": "",
+      "selection_mode_19": "index",
+      "two_item_template_19": "start with {item1} then follow with {item2}",
+      "pick_count_19": 1,
+      "preset_20": "Custom",
+      "items_20": "",
+      "label_20": "",
+      "selection_mode_20": "index",
+      "two_item_template_20": "start with {item1} then follow with {item2}",
+      "pick_count_20": 1,
+      "easy_picker_panel": "",
+      "index_1": [
+        "898",
+        0
+      ],
+      "seed_1": [
+        "899",
+        0
+      ],
+      "index_2": [
+        "218:287",
+        2
+      ],
+      "seed_2": [
+        "899",
+        0
+      ]
+    },
+    "class_type": "VRGDG_EasyMultiCyclingTextPicker",
+    "_meta": {
+      "title": "VRGDG Easy Multi Cycling Text Picker"
+    }
+  },
+  "736:425": {
+    "inputs": {
+      "value": 1920
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "736:426": {
+    "inputs": {
+      "value": 1080
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Height"
+    }
+  },
+  "736:449": {
+    "inputs": {
+      "value": 69
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "736:424": {
+    "inputs": {
+      "value": 24
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Frames Per Second"
+    }
+  },
+  "736:725:35": {
+    "inputs": {
+      "value": -1085652754707070
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "736:725:39": {
+    "inputs": {
+      "refresh": [
+        "736:725:35",
+        0
+      ]
+    },
+    "class_type": "VRGDG_LoadAudioFilePath",
+    "_meta": {
+      "title": "VRGDG_LoadAudioFilePath"
+    }
+  },
+  "736:691": {
+    "inputs": {
+      "audio_file": [
+        "736:725:39",
+        0
+      ],
+      "seek_seconds": 0,
+      "duration": 0
+    },
+    "class_type": "VHS_LoadAudio",
+    "_meta": {
+      "title": "Load Audio (Path)🎥🅥🅗🅢"
+    }
+  },
+  "736:551": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "scene duration when fixed"
+    }
+  },
+  "271:211": {
+    "inputs": {
+      "model_name": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
+    },
+    "class_type": "LatentUpscaleModelLoader",
+    "_meta": {
+      "title": "Load Latent Upscale Model"
+    }
+  },
+  "271:254": {
+    "inputs": {
+      "vae_name": "LTX 2\\LTX23_audio_vae_bf16.safetensors",
+      "device": "main_device",
+      "weight_dtype": "bf16"
+    },
+    "class_type": "VAELoaderKJ",
+    "_meta": {
+      "title": "VAELoader KJ"
+    }
+  },
+  "271:256": {
+    "inputs": {
+      "vae_name": "LTX 2\\LTX23_video_vae_bf16.safetensors",
+      "device": "main_device",
+      "weight_dtype": "bf16"
+    },
+    "class_type": "VAELoaderKJ",
+    "_meta": {
+      "title": "VAELoader KJ"
+    }
+  },
+  "271:216": {
+    "inputs": {
+      "clip_name1": "gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors",
+      "clip_name2": "ltx-2.3_text_projection_bf16.safetensors",
+      "type": "ltxv"
+    },
+    "class_type": "DualCLIPLoaderGGUF",
+    "_meta": {
+      "title": "DualCLIPLoader (GGUF)"
+    }
+  },
+  "271:215": {
+    "inputs": {
+      "unet_name": "VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q4_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "268:266": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "268:267",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "🎈RAM-Cleanup"
+    }
+  },
+  "268:267": {
+    "inputs": {
+      "offload_model": false,
+      "offload_cache": true,
+      "anything": [
+        "219:207",
+        1
+      ]
+    },
+    "class_type": "VRAMCleanup",
+    "_meta": {
+      "title": "🎈VRAM-Cleanup"
+    }
+  },
+  "269:264": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "269:265",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "🎈RAM-Cleanup"
+    }
+  },
+  "269:265": {
+    "inputs": {
+      "offload_model": false,
+      "offload_cache": true
+    },
+    "class_type": "VRAMCleanup",
+    "_meta": {
+      "title": "🎈VRAM-Cleanup"
+    }
+  },
+  "236:223": {
+    "inputs": {
+      "av_latent": [
+        "219:207",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "LTXVSeparateAVLatent"
+    }
+  },
+  "236:197": {
+    "inputs": {
+      "samples": [
+        "236:223",
+        1
+      ],
+      "audio_vae": [
+        "271:254",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "LTXV Audio VAE Decode"
+    }
+  },
+  "236:196": {
+    "inputs": {
+      "tile_size": 1280,
+      "overlap": 128,
+      "temporal_size": 32,
+      "temporal_overlap": 16,
+      "samples": [
+        "236:223",
+        0
+      ],
+      "vae": [
+        "271:256",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE Decode (Tiled)"
+    }
+  },
+  "236:237:904": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "236:237:905",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "🎈RAM-Cleanup"
+    }
+  },
+  "236:237:905": {
+    "inputs": {
+      "offload_model": false,
+      "offload_cache": true,
+      "anything": [
+        "271:256",
+        0
+      ]
+    },
+    "class_type": "VRAMCleanup",
+    "_meta": {
+      "title": "🎈VRAM-Cleanup"
+    }
+  },
+  "219:188": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "842",
+        1
+      ],
+      "positive": [
+        "219:903",
+        0
+      ],
+      "negative": [
+        "219:903",
+        1
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFGGuider"
+    }
+  },
+  "219:208": {
+    "inputs": {
+      "sigmas": "0.909375, 0.725, 0.421875, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "ManualSigmas"
+    }
+  },
+  "219:190": {
+    "inputs": {
+      "video_latent": [
+        "219:221",
+        0
+      ],
+      "audio_latent": [
+        "219:220",
+        1
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "LTXVConcatAVLatent"
+    }
+  },
+  "219:189": {
+    "inputs": {
+      "noise_seed": 0
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "219:207": {
+    "inputs": {
+      "noise": [
+        "219:189",
+        0
+      ],
+      "guider": [
+        "219:188",
+        0
+      ],
+      "sampler": [
+        "219:187",
+        0
+      ],
+      "sigmas": [
+        "219:208",
+        0
+      ],
+      "latent_image": [
+        "219:190",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "219:220": {
+    "inputs": {
+      "av_latent": [
+        "218:206",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "LTXVSeparateAVLatent"
+    }
+  },
+  "219:903": {
+    "inputs": {
+      "positive": [
+        "181",
+        0
+      ],
+      "negative": [
+        "181",
+        1
+      ],
+      "latent": [
+        "219:220",
+        0
+      ]
+    },
+    "class_type": "LTXVCropGuides",
+    "_meta": {
+      "title": "LTXVCropGuides"
+    }
+  },
+  "219:192": {
+    "inputs": {
+      "samples": [
+        "219:903",
+        2
+      ],
+      "upscale_model": [
+        "271:211",
+        0
+      ],
+      "vae": [
+        "271:256",
+        0
+      ]
+    },
+    "class_type": "LTXVLatentUpsampler",
+    "_meta": {
+      "title": "LTXVLatentUpsampler"
+    }
+  },
+  "219:187": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "219:221": {
+    "inputs": {
+      "strength": 1,
+      "bypass": false,
+      "vae": [
+        "271:256",
+        0
+      ],
+      "image": [
+        "797:8",
+        0
+      ],
+      "latent": [
+        "219:192",
+        0
+      ]
+    },
+    "class_type": "LTXVImgToVideoInplace",
+    "_meta": {
+      "title": "LTXVImgToVideoInplace"
+    }
+  },
+  "218:186": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "218:199": {
+    "inputs": {
+      "video_latent": [
+        "218:222",
+        0
+      ],
+      "audio_latent": [
+        "218:245",
+        0
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "LTXVConcatAVLatent"
+    }
+  },
+  "218:280": {
+    "inputs": {
+      "img_compression": 33,
+      "image": [
+        "797:8",
+        0
+      ]
+    },
+    "class_type": "LTXVPreprocess",
+    "_meta": {
+      "title": "LTXVPreprocess"
+    }
+  },
+  "218:200": {
+    "inputs": {
+      "value": [
+        "218:287",
+        3
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Frame Count"
+    }
+  },
+  "218:185": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "842",
+        0
+      ],
+      "positive": [
+        "181",
+        0
+      ],
+      "negative": [
+        "181",
+        1
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFGGuider"
+    }
+  },
+  "218:279": {
+    "inputs": {
+      "resize_type": "scale dimensions",
+      "resize_type.width": [
+        "736:425",
+        0
+      ],
+      "resize_type.height": [
+        "736:426",
+        0
+      ],
+      "resize_type.crop": "center",
+      "scale_method": "lanczos",
+      "input": [
+        "797:8",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "218:277": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "scale_by": 0.5,
+      "image": [
+        "218:275",
+        0
+      ]
+    },
+    "class_type": "ImageScaleBy",
+    "_meta": {
+      "title": "Upscale Image By"
+    }
+  },
+  "218:276": {
+    "inputs": {
+      "image": [
+        "218:279",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "218:275": {
+    "inputs": {
+      "width": [
+        "218:276",
+        0
+      ],
+      "height": [
+        "218:276",
+        1
+      ],
+      "batch_size": 1,
+      "color": 0
+    },
+    "class_type": "EmptyImage",
+    "_meta": {
+      "title": "EmptyImage"
+    }
+  },
+  "218:278": {
+    "inputs": {
+      "image": [
+        "218:277",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "218:183": {
+    "inputs": {
+      "width": [
+        "218:278",
+        0
+      ],
+      "height": [
+        "218:278",
+        1
+      ],
+      "length": [
+        "218:200",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLTXVLatentVideo",
+    "_meta": {
+      "title": "EmptyLTXVLatentVideo"
+    }
+  },
+  "218:222": {
+    "inputs": {
+      "strength": 1,
+      "bypass": false,
+      "vae": [
+        "271:256",
+        0
+      ],
+      "image": [
+        "218:280",
+        0
+      ],
+      "latent": [
+        "218:183",
+        0
+      ]
+    },
+    "class_type": "LTXVImgToVideoInplace",
+    "_meta": {
+      "title": "LTXVImgToVideoInplace"
+    }
+  },
+  "218:182": {
+    "inputs": {
+      "frames_number": [
+        "218:200",
+        0
+      ],
+      "frame_rate": [
+        "736:424",
+        0
+      ],
+      "batch_size": 1,
+      "audio_vae": [
+        "271:254",
+        0
+      ]
+    },
+    "class_type": "LTXVEmptyLatentAudio",
+    "_meta": {
+      "title": "LTXV Empty Latent Audio"
+    }
+  },
+  "218:206": {
+    "inputs": {
+      "noise": [
+        "235",
+        0
+      ],
+      "guider": [
+        "218:185",
+        0
+      ],
+      "sampler": [
+        "218:186",
+        0
+      ],
+      "sigmas": [
+        "218:209",
+        0
+      ],
+      "latent_image": [
+        "218:199",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "218:240": {
+    "inputs": {
+      "audio": [
+        "218:287",
+        13
+      ],
+      "audio_vae": [
+        "271:254",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEEncode",
+    "_meta": {
+      "title": "LTXV Audio VAE Encode"
+    }
+  },
+  "218:245": {
+    "inputs": {
+      "samples": [
+        "218:240",
+        0
+      ],
+      "mask": [
+        "218:246",
+        0
+      ]
+    },
+    "class_type": "SetLatentNoiseMask",
+    "_meta": {
+      "title": "Set Latent Noise Mask"
+    }
+  },
+  "218:246": {
+    "inputs": {
+      "value": 0,
+      "width": [
+        "736:425",
+        0
+      ],
+      "height": [
+        "736:426",
+        0
+      ]
+    },
+    "class_type": "SolidMask",
+    "_meta": {
+      "title": "SolidMask"
+    }
+  },
+  "218:209": {
+    "inputs": {
+      "sigmas": "1., 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "ManualSigmas"
+    }
+  },
+  "218:252": {
+    "inputs": {
+      "value": -36724685364670
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "218:287": {
+    "inputs": {
+      "srt_file": [
+        "837",
+        0
+      ],
+      "fixed_duration": [
+        "736:551",
+        0
+      ],
+      "fps": [
+        "736:424",
+        0
+      ],
+      "folder_path": [
+        "437",
+        0
+      ],
+      "enable_auto_queue": true,
+      "redo_prompt_number": 0,
+      "use_remake_folder": false,
+      "overwrite_mode": "backup",
+      "tail_loss_frames": 25,
+      "pre_frames": 50,
+      "audio": [
+        "736:691",
+        0
+      ],
+      "trigger": [
+        "218:252",
+        0
+      ]
+    },
+    "class_type": "VRGDG_LoadAudioSplit_SRTOnly",
+    "_meta": {
+      "title": "VRGDG_LoadAudioSplit_SRTOnly"
+    }
+  },
+  "867:866": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "805",
+        0
+      ],
+      "on_true": [
+        "867:865",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "use lora trigger word?"
+    }
+  },
+  "867:865": {
+    "inputs": {
+      "string_count": 2,
+      "delimiter": "\\n\\n",
+      "string_1": "",
+      "string_2": [
+        "805",
+        0
+      ],
+      "string_3": "",
+      "string_4": "",
+      "string_5": "",
+      "string_6": "",
+      "string_7": "",
+      "string_8": "",
+      "string_9": "",
+      "string_10": "",
+      "string_11": "",
+      "string_12": "",
+      "string_13": "",
+      "string_14": "",
+      "string_15": "",
+      "string_16": "",
+      "string_17": "",
+      "string_18": "",
+      "string_19": "",
+      "string_20": ""
+    },
+    "class_type": "VRGDG_MultiStringConcat",
+    "_meta": {
+      "title": "LORA TRIGGER WORD"
+    }
+  },
+  "797:18": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "797:17": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "797:85": {
+    "inputs": {
+      "sampler_name": "dpmpp_sde"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "797:6": {
+    "inputs": {
+      "text": [
+        "867:866",
+        0
+      ],
+      "clip": [
+        "797:18",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "797:7": {
+    "inputs": {
+      "text": "bad hands, extra fingers, missing fingers, fused fingers, broken hands, mutant hands, twisted limbs, extra limbs, missing limbs, dimple ",
+      "clip": [
+        "797:18",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "797:8": {
+    "inputs": {
+      "samples": [
+        "797:195",
+        0
+      ],
+      "vae": [
+        "797:17",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "797:86": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 562603247439722,
+      "cfg": 1,
+      "model": [
+        "797:847",
+        0
+      ],
+      "positive": [
+        "797:6",
+        0
+      ],
+      "negative": [
+        "797:7",
+        0
+      ],
+      "sampler": [
+        "797:85",
+        0
+      ],
+      "sigmas": [
+        "797:82",
+        0
+      ],
+      "latent_image": [
+        "797:193",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "797:193": {
+    "inputs": {
+      "width": 1280,
+      "height": 720,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "797:195": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 371358772379695,
+      "cfg": 1,
+      "model": [
+        "797:847",
+        1
+      ],
+      "positive": [
+        "797:6",
+        0
+      ],
+      "negative": [
+        "797:7",
+        0
+      ],
+      "sampler": [
+        "797:85",
+        0
+      ],
+      "sigmas": [
+        "797:907",
+        0
+      ],
+      "latent_image": [
+        "797:906",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "797:906": {
+    "inputs": {
+      "upscale_method": "area",
+      "width": 1920,
+      "height": 1080,
+      "crop": "disabled",
+      "samples": [
+        "797:86",
+        0
+      ]
+    },
+    "class_type": "LatentUpscale",
+    "_meta": {
+      "title": "Upscale Latent"
+    }
+  },
+  "797:16": {
+    "inputs": {
+      "unet_name": "IMAGE\\Z IMAGE\\z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "797:82": {
+    "inputs": {
+      "steps": 10,
+      "start_at_step": 0,
+      "end_at_step": 10,
+      "base_image_seq_len": 256,
+      "base_shift": 0.5,
+      "invert_sigmas": "disable",
+      "max_image_seq_len": 8192,
+      "max_shift": 1.15,
+      "num_train_timesteps": 1000,
+      "shift": 3,
+      "shift_terminal": 0,
+      "stochastic_sampling": "disable",
+      "time_shift_type": "exponential",
+      "use_beta_sigmas": "disable",
+      "use_dynamic_shifting": "disable",
+      "use_exponential_sigmas": "disable",
+      "use_karras_sigmas": "disable",
+      "device": "cuda"
+    },
+    "class_type": "FlowMatchEulerDiscreteScheduler (Custom)",
+    "_meta": {
+      "title": "FlowMatch Euler Discrete Scheduler (Custom)"
+    }
+  },
+  "797:907": {
+    "inputs": {
+      "steps": 10,
+      "start_at_step": 5,
+      "end_at_step": 10,
+      "base_image_seq_len": 256,
+      "base_shift": 0.5,
+      "invert_sigmas": "disable",
+      "max_image_seq_len": 8192,
+      "max_shift": 1.15,
+      "num_train_timesteps": 1000,
+      "shift": 3,
+      "shift_terminal": 0,
+      "stochastic_sampling": "disable",
+      "time_shift_type": "exponential",
+      "use_beta_sigmas": "disable",
+      "use_dynamic_shifting": "disable",
+      "use_exponential_sigmas": "disable",
+      "use_karras_sigmas": "disable",
+      "device": "cuda"
+    },
+    "class_type": "FlowMatchEulerDiscreteScheduler (Custom)",
+    "_meta": {
+      "title": "FlowMatch Euler Discrete Scheduler (Custom)"
+    }
+  },
+  "797:847": {
+    "inputs": {
+      "use_custom_loras": false,
+      "lora_count": 1,
+      "ltx_two_pass_mode": false,
+      "lora_1": "[none]",
+      "strength_1": 0.7,
+      "lora_2": "[none]",
+      "strength_2": 1,
+      "lora_3": "[none]",
+      "strength_3": 1,
+      "lora_4": "[none]",
+      "strength_4": 1,
+      "lora_5": "[none]",
+      "strength_5": 1,
+      "lora_6": "[none]",
+      "strength_6": 1,
+      "lora_7": "[none]",
+      "strength_7": 1,
+      "lora_8": "[none]",
+      "strength_8": 1,
+      "lora_9": "[none]",
+      "strength_9": 1,
+      "lora_10": "[none]",
+      "strength_10": 1,
+      "lora_11": "[none]",
+      "strength_11": 1,
+      "lora_12": "[none]",
+      "strength_12": 1,
+      "lora_13": "[none]",
+      "strength_13": 1,
+      "lora_14": "[none]",
+      "strength_14": 1,
+      "lora_15": "[none]",
+      "strength_15": 1,
+      "lora_16": "[none]",
+      "strength_16": 1,
+      "lora_17": "[none]",
+      "strength_17": 1,
+      "lora_18": "[none]",
+      "strength_18": 1,
+      "lora_19": "[none]",
+      "strength_19": 1,
+      "lora_20": "[none]",
+      "strength_20": 1,
+      "model": [
+        "797:16",
+        0
+      ]
+    },
+    "class_type": "VRGDG_OptionalMultiLoraModelOnly",
+    "_meta": {
+      "title": "VRGDG Optional Multi LoRA Model Only"
+    }
+  },
+  "885:908": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "811",
+        0
+      ],
+      "on_true": [
+        "885:909",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "use lora trigger word?"
+    }
+  },
+  "885:909": {
+    "inputs": {
+      "string_count": 2,
+      "delimiter": ",",
+      "string_1": "",
+      "string_2": [
+        "811",
+        0
+      ],
+      "string_3": "",
+      "string_4": "",
+      "string_5": "",
+      "string_6": "",
+      "string_7": "",
+      "string_8": "",
+      "string_9": "",
+      "string_10": "",
+      "string_11": "",
+      "string_12": "",
+      "string_13": "",
+      "string_14": "",
+      "string_15": "",
+      "string_16": "",
+      "string_17": "",
+      "string_18": "",
+      "string_19": "",
+      "string_20": ""
+    },
+    "class_type": "VRGDG_MultiStringConcat",
+    "_meta": {
+      "title": "LORA TRIGGER WORD"
+    }
+  }
+}

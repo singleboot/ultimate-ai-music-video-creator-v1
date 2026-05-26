@@ -1,0 +1,426 @@
+{
+  "13": {
+    "inputs": {
+      "conditioning": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "14": {
+    "inputs": {
+      "audio": [
+        "16",
+        0
+      ],
+      "vae": [
+        "15",
+        2
+      ]
+    },
+    "class_type": "VAEEncodeAudio",
+    "_meta": {
+      "title": "VAE Encode Audio"
+    }
+  },
+  "15": {
+    "inputs": {
+      "ckpt_name": "ace_step_1.5_turbo_aio.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "16": {
+    "inputs": {
+      "audio": "naina milawa.wav",
+      "start_time": 0,
+      "duration": 180
+    },
+    "class_type": "VHS_LoadAudioUpload",
+    "_meta": {
+      "title": "Load Audio (Upload)🎥🅥🅗🅢"
+    }
+  },
+  "17": {
+    "inputs": {
+      "frame_rate": 30,
+      "audio": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "AudioInfo",
+    "_meta": {
+      "title": "Audio Info ⚡🅡🅞🅣🅘"
+    }
+  },
+  "19": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "23",
+        0
+      ],
+      "positive": [
+        "31",
+        0
+      ],
+      "negative": [
+        "13",
+        0
+      ],
+      "source_latents": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "ACEStep15NativeCoverGuider",
+    "_meta": {
+      "title": "ACE-Step 1.5 Cover Guider ⚡🅡🅞🅣🅘"
+    }
+  },
+  "20": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "21": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 30,
+      "denoise": 1,
+      "model": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "22": {
+    "inputs": {
+      "noise_seed": 759180801655719
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "23": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "24": {
+    "inputs": {
+      "noise": [
+        "22",
+        0
+      ],
+      "guider": [
+        "19",
+        0
+      ],
+      "sampler": [
+        "20",
+        0
+      ],
+      "sigmas": [
+        "21",
+        0
+      ],
+      "latent_image": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "25": {
+    "inputs": {
+      "audioUI": "",
+      "audio": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "PreviewAudio",
+    "_meta": {
+      "title": "Original"
+    }
+  },
+  "26": {
+    "inputs": {
+      "samples": [
+        "24",
+        1
+      ],
+      "vae": [
+        "15",
+        2
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "28": {
+    "inputs": {
+      "audioUI": "",
+      "audio": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "PreviewAudio",
+    "_meta": {
+      "title": "Master Song"
+    }
+  },
+  "31": {
+    "inputs": {
+      "text": [
+        "32",
+        0
+      ],
+      "task_type": "cover",
+      "track_name": "",
+      "lyrics": "[Verse]\nSalt in the air, phone face down\nSun melting slow, gold to brown\nFootprints fade where the waves run through\nEverything loud, except me and you\n\n[Pre-Chorus]\nBreathing with the tide tonight\nHeart on low, city out of sight\nIf I disappear for a while\nI’m just learning how to be quiet\n\n[Chorus]\nLet the ocean take the weight\nI don’t need to rush my fate\nNeon thoughts, drifting free\nI’m right here, the sea and me\nHold the moment, don’t explain\nI’m lighter every time it breaks\nNo tomorrow, no regret\nJust the waves, just the breath\n\n[Verse]\nStreetlight stars in my memory\nFast life moving too fast for me\nEvery dream wants more than it gives\nTonight I’m fine with how this lives\n\n[Pre-Chorus]\nLow tide pulling at my fears\nAll the noise dissolves right here\nIf the world keeps calling my name\nI’ll let it ring, I’ll stay the same\n\n[Chorus]\nLet the ocean take the weight\nI don’t need to rush my fate\nNeon thoughts, drifting free\nI’m right here, the sea and me\nHold the moment, don’t explain\nI’m lighter every time it breaks\nNo tomorrow, no regret\nJust the waves, just the breath\n\n[Bridge]\nIf I fall apart, let it be slow\nLike moonlight sinking below\nI don’t need saving tonight\nI’m learning how to float, not fight\n\n[Outro]\nJust the waves\nJust the breath\nI’m not lost\nI’m not there yet",
+      "bpm": [
+        "17",
+        8
+      ],
+      "duration": 180,
+      "keyscale": [
+        "17",
+        16
+      ],
+      "timesignature": "4",
+      "language": "en",
+      "seed": 1940190768,
+      "cfg_scale": 2,
+      "temperature": 0.85,
+      "top_p": 0.9,
+      "top_k": 0,
+      "min_p": 0,
+      "clip": [
+        "15",
+        1
+      ]
+    },
+    "class_type": "ACEStep15TaskTextEncode",
+    "_meta": {
+      "title": "ACE-Step 1.5 Task Text Encode ⚡🅡🅞🅣🅘"
+    }
+  },
+  "32": {
+    "inputs": {
+      "model_name": "Qwen3-VL-2B-Instruct",
+      "quantization": "8-bit (Balanced)",
+      "attention_mode": "sdpa",
+      "use_torch_compile": false,
+      "device": "auto",
+      "prompt_text": [
+        "33",
+        0
+      ],
+      "enhancement_style": "📝 Enhance",
+      "custom_system_prompt": "You are a deterministic genre-to-preset mapping agent for ACE Step 1.5.\n\nYour task is NOT to describe genres.\nYour task IS to output a compact, production-ready tag preset.\n\nRules:\n- Treat each genre as a predefined production style\n- Output tags that directly influence sound generation\n- Avoid abstract, cinematic, or aesthetic-only words\n- Prefer concrete instruments, sound design, rhythm, and mix style\n- Do NOT add unrelated genres or adjacent styles\n- Do NOT generalize or free-associate\n- Output 8–15 tags only\n- Comma-separated, no explanations\n\nIf the input genre implies a hybrid style (e.g. futurebass + acoustic),\nexplicitly include acoustic elements.\n",
+      "max_tokens": 256,
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "repetition_penalty": 1.1,
+      "keep_model_loaded": false,
+      "seed": 2518204772
+    },
+    "class_type": "AILab_QwenVL_PromptEnhancer",
+    "_meta": {
+      "title": "QwenVL Prompt Enhancer"
+    }
+  },
+  "33": {
+    "inputs": {
+      "input_text": "futurebass ",
+      "seed": 38313572833524,
+      "environment_preset": "None",
+      "lighting_preset": "None"
+    },
+    "class_type": "ApexPromptPreset",
+    "_meta": {
+      "title": "Apex Random Prompt"
+    }
+  },
+  "34": {
+    "inputs": {
+      "text_0": "synth-bass, drum-loop, kick-drum, hi-hat, pad-synth, glitch-effect, reverb-heavy, syncopated-rhythm, low-pass-filtered, sub-bass, atmospheric-noise, stereo-spread",
+      "text": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
+    }
+  },
+  "35": {
+    "inputs": {
+      "chunk_length": 10,
+      "chunk_overlap": 0.1,
+      "chunk_fade_shape": "linear",
+      "audio": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "FL_Audio_Separation",
+    "_meta": {
+      "title": "FL Audio Separation"
+    }
+  },
+  "40": {
+    "inputs": {
+      "filename_prefix": "Aceaudio/bass",
+      "audioUI": "",
+      "audio": [
+        "35",
+        0
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Save Audio (FLAC)"
+    }
+  },
+  "41": {
+    "inputs": {
+      "filename_prefix": "Aceaudio/drums",
+      "audioUI": "",
+      "audio": [
+        "35",
+        1
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Save Audio (FLAC)"
+    }
+  },
+  "42": {
+    "inputs": {
+      "filename_prefix": "Aceaudio/other",
+      "audioUI": "",
+      "audio": [
+        "35",
+        2
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Save Audio (FLAC)"
+    }
+  },
+  "43": {
+    "inputs": {
+      "filename_prefix": "Aceaudio/vocal",
+      "audioUI": "",
+      "audio": [
+        "35",
+        3
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Save Audio (FLAC)"
+    }
+  },
+  "46": {
+    "inputs": {
+      "filename_prefix": "Aceaudio/Master",
+      "audioUI": "",
+      "audio": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "Master"
+    }
+  },
+  "49": {
+    "inputs": {
+      "clip_name": "gemma4_e4b_it_fp8_scaled.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "50": {
+    "inputs": {
+      "prompt": "<bos><start_of_turn>user\nYou are an expert audio transcriber. Listen to the attached audio file and extract the lyrics. \n\nYou must strictly output the lyrics formatted exactly like the example below, using tags like [Verse], [Pre-Chorus], [Chorus], etc. Do not include any introductory sentences, conversational filler, or explanations. Do not output <think> tags.\n\nFormat Example:\n[Verse]\nSalt in the air, phone face down\nSun melting slow, gold to brown\n\n[Chorus]\nLet the ocean take the weight\nI don't need to rush my fate\n\nTask: Transcribe the attached audio into the format above. Only output the structured lyrics.\n<end_of_turn>\n<start_of_turn>model",
+      "max_length": 1024,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 0.7,
+      "sampling_mode.top_k": 64,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1.05,
+      "sampling_mode.seed": 0,
+      "sampling_mode.presence_penalty": 0,
+      "thinking": false,
+      "use_default_template": false,
+      "clip": [
+        "49",
+        0
+      ],
+      "audio": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "TextGenerate",
+    "_meta": {
+      "title": "TextGenerate"
+    }
+  },
+  "51": {
+    "inputs": {
+      "source": [
+        "50",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview as Text"
+    }
+  }
+}
