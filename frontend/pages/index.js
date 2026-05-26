@@ -7,7 +7,7 @@ import {
   FaImage, FaArrowRight, FaMagic, FaStar,
   FaRobot, FaExchangeAlt,
   FaCirclePlay,
-} from 'react-icons/fa6';
+} from 'react-icons/fa';
 import GlassCard from '../components/GlassCard';
 import GlowButton from '../components/GlowButton';
 import NeonInput from '../components/NeonInput';
