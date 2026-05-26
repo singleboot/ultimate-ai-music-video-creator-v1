@@ -39,7 +39,7 @@ if %ERRORLEVEL% neq 0 (
 
 REM Start FastAPI backend
 echo [3/4] Starting API server...
-start "UltimateMV-API" /B /MIN python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload --app-dir app
+start "UltimateMV-API" /B /MIN cmd /c "cd /d "%~dp0app" && python -m uvicorn main:app --host 127.0.0.1 --port 8000"
 
 echo        Waiting for API server...
 :wait_api
