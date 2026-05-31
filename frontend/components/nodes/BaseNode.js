@@ -45,7 +45,7 @@ export default function BaseNode({
     if (!resizing) return;
     const dx = e.clientX - startPos.current.x;
     const dy = e.clientY - startPos.current.y;
-    const newW = Math.max(180, startPos.current.w + dx);
+    const newW = Math.max(150, startPos.current.w + dx);
     const newH = Math.max(60, startPos.current.h + dy);
     resizeNodeCentered(nodeId, newW, newH);
   }, [resizing, nodeId, resizeNodeCentered]);
@@ -99,6 +99,7 @@ export default function BaseNode({
           alignItems: 'center',
           gap: 5,
           position: 'relative',
+          minHeight: 26,
         }}
       >
         <div
@@ -139,8 +140,40 @@ export default function BaseNode({
         )}
       </div>
 
+      {/* Handle labels row (inside node) */}
+      {useLabeled && (inputHandles?.length > 0 || outputHandles?.length > 0) && (
+        <div style={{
+          padding: '0 8px 4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          flexWrap: 'wrap',
+        }}>
+          {inputHandles?.map((h) => (
+            <span key={h.id} style={{
+              fontSize: 8, color: '#b9b4d0',
+              display: 'inline-flex', alignItems: 'center', gap: 2,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'inline-block' }} />
+              {h.icon} {h.label}
+            </span>
+          ))}
+          {outputHandles?.map((h) => (
+            <span key={h.id} style={{
+              fontSize: 8, color: '#b9b4d0',
+              display: 'inline-flex', alignItems: 'center', gap: 2,
+            }}>
+              {h.icon} {h.label}
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#63d4ff', display: 'inline-block' }} />
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Body */}
-      <div style={{ padding: '5px 8px 8px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{children}</div>
+      <div style={{ padding: '0 8px 8px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </div>
 
       {/* Resize handle (bottom-right corner) */}
       {(selected || hovered) && (
@@ -167,101 +200,74 @@ export default function BaseNode({
       {/* Input handles */}
       {useLabeled && inputHandles
         ? inputHandles.map((h, i) => {
-            const top = `${26 + 22 * i + 6}px`;
+            const top = `${28 + 20 * i}px`;
             return (
-              <div key={h.id}>
-                <Handle
-                  type="target"
-                  position={Position.Left}
-                  id={h.id}
-                  style={{
-                    background: color,
-                    width: 7, height: 7,
-                    border: '2px solid rgba(15,5,30,0.95)',
-                    top, left: -4, zIndex: 2,
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute', left: 0, top,
-                    transform: 'translateX(8px) translateY(-50%)',
-                    display: 'flex', alignItems: 'center', gap: 2,
-                    fontSize: 8, color: '#b9b4d0',
-                    pointerEvents: 'none', whiteSpace: 'nowrap',
-                  }}
-                >
-                  <span style={{ fontSize: 9 }}>{h.icon}</span>
-                  <span>{h.label}</span>
-                </div>
-              </div>
+              <Handle
+                key={h.id}
+                type="target"
+                position={Position.Left}
+                id={h.id}
+                style={{
+                  background: color,
+                  width: 6, height: 6,
+                  border: '2px solid rgba(15,5,30,0.95)',
+                  top, left: -3, zIndex: 2,
+                }}
+              />
             );
           })
         : hasInput && !useLabeled &&
-            Array.from({ length: inputCount }).map((_, i) => (
-              <Handle
-                key={`in-${i}`}
-                type="target"
-                position={Position.Top}
-                id={`input-${i}`}
-                style={{
-                  background: '#b026ff',
-                  width: 7, height: 7,
-                  border: '2px solid rgba(15,5,30,0.95)',
-                  top: -4,
-                  left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
-                }}
-              />
-            ))}
+          Array.from({ length: inputCount }).map((_, i) => (
+            <Handle
+              key={`in-${i}`}
+              type="target"
+              position={Position.Top}
+              id={`input-${i}`}
+              style={{
+                background: '#b026ff',
+                width: 6, height: 6,
+                border: '2px solid rgba(15,5,30,0.95)',
+                top: -3,
+                left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
+              }}
+            />
+          ))}
 
       {/* Output handles */}
       {useLabeled && outputHandles
         ? outputHandles.map((h, i) => {
-            const top = `${26 + 22 * i + 6}px`;
+            const top = `${28 + 20 * i}px`;
             return (
-              <div key={h.id}>
-                <Handle
-                  type="source"
-                  position={Position.Right}
-                  id={h.id}
-                  style={{
-                    background: '#63d4ff',
-                    width: 7, height: 7,
-                    border: '2px solid rgba(15,5,30,0.95)',
-                    top, right: -4, zIndex: 2,
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute', right: 0, top,
-                    transform: 'translateX(-8px) translateY(-50%)',
-                    display: 'flex', alignItems: 'center', gap: 2,
-                    fontSize: 8, color: '#b9b4d0',
-                    pointerEvents: 'none', whiteSpace: 'nowrap',
-                    flexDirection: 'row-reverse',
-                  }}
-                >
-                  <span style={{ fontSize: 9 }}>{h.icon}</span>
-                  <span>{h.label}</span>
-                </div>
-              </div>
+              <Handle
+                key={h.id}
+                type="source"
+                position={Position.Right}
+                id={h.id}
+                style={{
+                  background: '#63d4ff',
+                  width: 6, height: 6,
+                  border: '2px solid rgba(15,5,30,0.95)',
+                  top, right: -3, zIndex: 2,
+                }}
+              />
             );
           })
         : hasOutput && !useLabeled &&
-            Array.from({ length: outputCount }).map((_, i) => (
-              <Handle
-                key={`out-${i}`}
-                type="source"
-                position={Position.Bottom}
-                id={`output-${i}`}
-                style={{
-                  background: '#63d4ff',
-                  width: 7, height: 7,
-                  border: '2px solid rgba(15,5,30,0.95)',
-                  bottom: -4,
-                  left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
-                }}
-              />
-            ))}
+          Array.from({ length: outputCount }).map((_, i) => (
+            <Handle
+              key={`out-${i}`}
+              type="source"
+              position={Position.Bottom}
+              id={`output-${i}`}
+              style={{
+                background: '#63d4ff',
+                width: 6, height: 6,
+                border: '2px solid rgba(15,5,30,0.95)',
+                bottom: -3,
+                left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
+              }}
+            />
+          ))}
     </div>
   );
 }
@@ -300,7 +306,7 @@ const labelBase = {
 
 const btnBase = {
   width: '100%',
-  padding: '2px 5px',
+  padding: '3px 6px',
   borderRadius: 4,
   border: 'none',
   background: '#b026ff',

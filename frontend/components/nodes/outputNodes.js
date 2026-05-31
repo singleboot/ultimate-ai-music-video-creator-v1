@@ -101,7 +101,7 @@ const TextPreviewNode = React.memo(function TextPreviewNode({ data, id, selected
   const text = data.text || data.lyrics || '';
   return (
     <BaseNode title="Text Preview" color="#b9b4d0" selected={selected} nodeId={id} data={data} inputHandles={textIn} hasOutput={false}>
-      <div style={{ maxHeight: 160, overflowY: 'auto', fontSize: 12, color: '#b9b4d0', lineHeight: 1.6, padding: 8, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(176,38,255,0.1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+      <div style={{ flex: 1, overflowY: 'auto', fontSize: 11, color: '#b9b4d0', lineHeight: 1.6, padding: 8, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(176,38,255,0.1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {text || <span style={{ color: '#6b6880' }}>No text connected</span>}
       </div>
     </BaseNode>

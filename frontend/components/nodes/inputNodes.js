@@ -165,8 +165,8 @@ const ThemeNode = React.memo(function ThemeNode({ data, id, selected }) {
         value={data.theme || ''}
         onChange={(e) => data.onUpdate?.(id, { theme: e.target.value })}
         placeholder="Describe the theme or story..."
-        rows={4}
-        style={{ ...inputBase, resize: 'vertical', minHeight: 80 }}
+        rows={5}
+        style={{ ...inputBase, resize: 'vertical', minHeight: 100, fontSize: 11, lineHeight: 1.5 }}
       />
     </BaseNode>
   );
@@ -259,8 +259,8 @@ const LyricsInputNode = React.memo(function LyricsInputNode({ data, id, selected
         value={data.lyrics || ''}
         onChange={(e) => data.onUpdate?.(id, { lyrics: e.target.value })}
         placeholder="Enter your lyrics..."
-        rows={6}
-        style={{ ...inputBase, resize: 'vertical', minHeight: 120, lineHeight: 1.5 }}
+        rows={10}
+        style={{ ...inputBase, resize: 'vertical', minHeight: 180, lineHeight: 1.6, fontSize: 11 }}
       />
     </BaseNode>
   );
