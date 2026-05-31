@@ -6,6 +6,8 @@ import useWorkflowStore from '../../store/workflowStore';
 export default function WorkflowControls({ onRun }) {
   const workflowName = useWorkflowStore((s) => s.workflowName);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
+  const projectPath = useWorkflowStore((s) => s.projectPath);
+  const setProjectPath = useWorkflowStore((s) => s.setProjectPath);
   const saveWorkflow = useWorkflowStore((s) => s.saveWorkflow);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
   const clearWorkflow = useWorkflowStore((s) => s.clearWorkflow);
@@ -171,6 +173,27 @@ export default function WorkflowControls({ onRun }) {
           }}
         >
           {workflowName}
+        </div>
+      )}
+
+      {/* Project path */}
+      {projectPath && (
+        <div
+          style={{
+            fontSize: 11,
+            color: '#6b6880',
+            padding: '4px 8px',
+            borderRadius: 6,
+            background: 'rgba(176,38,255,0.05)',
+            border: '1px solid rgba(176,38,255,0.1)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: 240,
+          }}
+          title={projectPath}
+        >
+          {projectPath}
         </div>
       )}
 

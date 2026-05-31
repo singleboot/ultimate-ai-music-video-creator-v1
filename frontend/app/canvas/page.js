@@ -12,17 +12,24 @@ import useWorkflowStore from '../../store/workflowStore';
 function CanvasInner() {
   const searchParams = useSearchParams();
   const loadId = searchParams.get('load');
+  const newName = searchParams.get('name');
+  const newPath = searchParams.get('path');
   const nodes = useWorkflowStore((s) => s.nodes);
   const edges = useWorkflowStore((s) => s.edges);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
+  const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
+  const setProjectPath = useWorkflowStore((s) => s.setProjectPath);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const [executing, setExecuting] = useState(false);
 
   useEffect(() => {
     if (loadId) {
       loadWorkflow(loadId);
+    } else if (newName) {
+      setWorkflowName(newName);
+      if (newPath) setProjectPath(newPath);
     }
-  }, [loadId, loadWorkflow]);
+  }, [loadId, newName, newPath, loadWorkflow, setWorkflowName, setProjectPath]);
 
   const handleRun = useCallback(async () => {
     if (executing) return;

@@ -10,6 +10,7 @@ const useWorkflowStore = create(
       edges: [],
       selectedNodeId: null,
       workflowName: 'Untitled Workflow',
+      projectPath: '',
       savedWorkflows: [],
 
       onNodesChange: (changes) => {
@@ -59,12 +60,17 @@ const useWorkflowStore = create(
         set({ workflowName: name });
       },
 
+      setProjectPath: (path) => {
+        set({ projectPath: path });
+      },
+
       saveWorkflow: () => {
-        const { nodes, edges, workflowName, savedWorkflows } = get();
+        const { nodes, edges, workflowName, projectPath, savedWorkflows } = get();
         const id = Date.now().toString();
         const entry = {
           id,
           name: workflowName,
+          path: projectPath,
           nodes: JSON.parse(JSON.stringify(nodes)),
           edges: JSON.parse(JSON.stringify(edges)),
           savedAt: new Date().toISOString(),
@@ -88,6 +94,7 @@ const useWorkflowStore = create(
           nodes: JSON.parse(JSON.stringify(wf.nodes)),
           edges: JSON.parse(JSON.stringify(wf.edges)),
           workflowName: wf.name,
+          projectPath: wf.path || '',
           selectedNodeId: null,
         });
         return true;
@@ -99,6 +106,7 @@ const useWorkflowStore = create(
           edges: [],
           selectedNodeId: null,
           workflowName: 'Untitled Workflow',
+          projectPath: '',
         });
       },
 
@@ -117,6 +125,7 @@ const useWorkflowStore = create(
       partialize: (state) => ({
         savedWorkflows: state.savedWorkflows,
         workflowName: state.workflowName,
+        projectPath: state.projectPath,
       }),
     }
   )
