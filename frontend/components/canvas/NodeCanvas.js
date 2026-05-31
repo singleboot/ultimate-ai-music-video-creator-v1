@@ -180,10 +180,16 @@ export default function NodeCanvas() {
 
   const [suggestions, setSuggestions] = useState(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [connectMenu, setConnectMenu] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const mouseRef = useRef({ x: 0, y: 0 });
+  const connectStartRef = useRef(null);
+  const edgeCountRef = useRef(0);
 
-  const onUpdate = useCallback((nodeId, data) => updateNodeData(nodeId, data), [updateNodeData]);
-  const onDelete = useCallback((nodeId) => removeNode(nodeId), [removeNode]);
+  // Track edge count to detect if a connection was actually made
+  useEffect(() => {
+    edgeCountRef.current = edges.length;
+  }, [edges]);
 
   const enrichedNodes = useMemo(() => {
     return nodes.map((n) => ({ ...n, data: { ...n.data, onUpdate, onDelete } }));
@@ -223,43 +229,74 @@ export default function NodeCanvas() {
     const dataKey = keys[handleId];
     if (!dataKey) return;
 
+    connectStartRef.current = { nodeId, handleId, handleType, dataKey, nodeType: node.type };
+    edgeCountRef.current = edges.length;
+
+    // Show quick suggestions while dragging
     if (handleType === 'source') {
-      // Dragging from output → suggest compatible target nodes
       const list = SUGGESTIONS[dataKey];
       if (list && list.length > 0) {
-        setSuggestions({ items: list, sourceNodeId: nodeId, sourceHandle: handleId, type: 'output' });
+        setSuggestions({ items: list, sourceNodeId: nodeId, sourceHandle: handleId, type: 'output', dataKey });
       }
     } else {
-      // Dragging from input → suggest compatible source nodes
       const list = INPUT_SUGGESTIONS[dataKey];
       if (list && list.length > 0) {
-        setSuggestions({ items: list, targetNodeId: nodeId, targetHandle: handleId, type: 'input' });
+        setSuggestions({ items: list, targetNodeId: nodeId, targetHandle: handleId, type: 'input', dataKey });
       }
     }
-  }, [nodes]);
+  }, [nodes, edges.length]);
 
   const onConnectEnd = useCallback(() => {
     setSuggestions(null);
+
+    // If no edge was added (connection released in empty space), open the persistent menu
+    const store = useWorkflowStore.getState();
+    const info = connectStartRef.current;
+    if (!info) return;
+
+    // Check if a new edge appeared after this drag ended
+    setTimeout(() => {
+      const currentEdges = useWorkflowStore.getState().edges.length;
+      if (currentEdges > edgeCountRef.current) return; // connection was made
+      if (!connectStartRef.current) return;
+
+      // Open persistent connect menu
+      const items = info.handleType === 'source'
+        ? (SUGGESTIONS[info.dataKey] || [])
+        : (INPUT_SUGGESTIONS[info.dataKey] || []);
+
+      if (items.length === 0) return;
+
+      setConnectMenu({
+        items,
+        sourceNodeId: info.handleType === 'source' ? info.nodeId : null,
+        sourceHandle: info.handleType === 'source' ? info.handleId : null,
+        targetNodeId: info.handleType === 'target' ? info.nodeId : null,
+        targetHandle: info.handleType === 'target' ? info.handleId : null,
+        type: info.handleType,
+        dataKey: info.dataKey,
+      });
+      setSearchQuery('');
+    }, 50);
   }, []);
 
-  const handleSuggestionClick = useCallback((item) => {
-    if (!suggestions) return;
+  const handleMenuSuggestionClick = useCallback((item) => {
+    if (!connectMenu) return;
 
     const id = getNodeId();
     const newNode = {
       id,
       type: item.type,
-      position: { x: mouseRef.current.x - 280 - 110, y: mouseRef.current.y - 56 - 30 },
+      position: { x: mouseRef.current.x - 280 - 140, y: mouseRef.current.y - 56 - 40 },
       data: {},
     };
     addNode(newNode);
 
-    // Create immediate edge
-    if (suggestions.type === 'output') {
+    if (connectMenu.type === 'source') {
       const edge = {
         id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        source: suggestions.sourceNodeId,
-        sourceHandle: suggestions.sourceHandle,
+        source: connectMenu.sourceNodeId,
+        sourceHandle: connectMenu.sourceHandle,
         target: id,
         targetHandle: item.handle,
         type: 'smoothstep',
@@ -271,16 +308,17 @@ export default function NodeCanvas() {
         id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         source: id,
         sourceHandle: item.handle,
-        target: suggestions.targetNodeId,
-        targetHandle: suggestions.targetHandle,
+        target: connectMenu.targetNodeId,
+        targetHandle: connectMenu.targetHandle,
         type: 'smoothstep',
         style: { stroke: '#b026ff', strokeWidth: 2 },
       };
       useWorkflowStore.getState().onEdgesChange([{ type: 'add', item: edge }]);
     }
 
-    setSuggestions(null);
-  }, [suggestions, addNode]);
+    setConnectMenu(null);
+    connectStartRef.current = null;
+  }, [connectMenu, addNode]);
 
   const onConnect = useCallback((connection) => {
     useWorkflowStore.getState().onEdgesChange([{
@@ -332,7 +370,7 @@ export default function NodeCanvas() {
         <MiniMap style={{ height: 120, width: 180, borderRadius: 12, border: '1px solid rgba(176,38,255,0.3)', background: 'rgba(15,5,30,0.9)' }} nodeColor="#b026ff" maskColor="rgba(5,1,13,0.8)" />
       </ReactFlow>
 
-      {/* Connection suggestion overlay */}
+      {/* Suggestion overlay during drag */}
       {suggestions && (
         <div
           style={{
@@ -344,48 +382,125 @@ export default function NodeCanvas() {
             border: '1px solid rgba(176,38,255,0.4)',
             borderRadius: 12,
             padding: 6,
-            minWidth: 180,
+            minWidth: 200,
             backdropFilter: 'blur(20px)',
             boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+            pointerEvents: 'auto',
           }}
         >
           <div style={{ padding: '6px 10px 4px', fontSize: 10, fontWeight: 700, color: '#6b6880', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            {suggestions.type === 'output' ? 'Connect to...' : 'Connect from...'}
+            {suggestions.type === 'output' ? 'Release to add...' : 'Release to add...'}
           </div>
-          {suggestions.items.length === 0 ? (
-            <div style={{ padding: '10px 10px', fontSize: 11, color: '#6b6880' }}>No compatible nodes</div>
-          ) : (
-            suggestions.items.map((item, i) => (
-              <div
-                key={`${item.type}-${item.handle}-${i}`}
-                onClick={() => handleSuggestionClick(item)}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  transition: 'background 0.1s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(176,38,255,0.12)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <div style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: suggestions.type === 'output' ? '#b026ff' : '#63d4ff',
-                  flexShrink: 0,
-                }} />
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{item.label}</div>
-                  <div style={{ fontSize: 10, color: '#6b6880', marginTop: 1 }}>
-                    click to add & connect
-                  </div>
-                </div>
-              </div>
-            ))
+          {suggestions.items.slice(0, 4).map((item, i) => (
+            <div key={`${item.type}-${i}`} style={{ padding: '7px 10px', fontSize: 11, color: '#b9b4d0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: suggestions.type === 'output' ? '#b026ff' : '#63d4ff', display: 'inline-block' }} />
+              {item.label}
+            </div>
+          ))}
+          {suggestions.items.length > 4 && (
+            <div style={{ padding: '4px 10px', fontSize: 10, color: '#6b6880' }}>
+              +{suggestions.items.length - 4} more
+            </div>
           )}
         </div>
+      )}
+
+      {/* Persistent connect menu */}
+      {connectMenu && (
+        <React.Fragment>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            onClick={() => { setConnectMenu(null); connectStartRef.current = null; }}
+          />
+          <div
+          style={{
+            position: 'fixed',
+            left: mouseRef.current.x - 140,
+            top: mouseRef.current.y - 20,
+            zIndex: 1000,
+            background: 'rgba(10,3,20,0.98)',
+            border: '1px solid rgba(176,38,255,0.3)',
+            borderRadius: 16,
+            padding: 8,
+            minWidth: 280,
+            maxWidth: 320,
+            backdropFilter: 'blur(24px)',
+            boxShadow: '0 8px 48px rgba(0,0,0,0.7)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ padding: '4px 10px 8px', fontSize: 11, fontWeight: 700, color: '#b026ff' }}>
+            {connectMenu.type === 'source' ? 'Add node to receive' : 'Add node that provides'} <span style={{ color: '#b9b4d0', textTransform: 'lowercase' }}>{connectMenu.dataKey}</span>
+          </div>
+          <input
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter nodes..."
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { setConnectMenu(null); connectStartRef.current = null; }
+            }}
+            style={{
+              width: '100%', padding: '8px 10px', marginBottom: 6, boxSizing: 'border-box',
+              borderRadius: 8, border: '1px solid rgba(176,38,255,0.2)',
+              background: 'rgba(176,38,255,0.06)',
+              color: '#fff', fontSize: 12, outline: 'none',
+              fontFamily: 'inherit',
+            }}
+          />
+          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+            {(searchQuery
+              ? connectMenu.items.filter((item) =>
+                  item.label.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+              : connectMenu.items
+            ).length === 0 ? (
+              <div style={{ padding: '16px 10px', textAlign: 'center', fontSize: 11, color: '#6b6880' }}>
+                No compatible nodes found
+              </div>
+            ) : (
+              (searchQuery
+                ? connectMenu.items.filter((item) =>
+                    item.label.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                : connectMenu.items
+              ).map((item, i) => (
+                <div
+                  key={`${item.type}-${i}`}
+                  onClick={() => handleMenuSuggestionClick(item)}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(176,38,255,0.12)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: connectMenu.type === 'source' ? '#b026ff' : '#63d4ff',
+                    flexShrink: 0,
+                  }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{item.label}</div>
+                    <div style={{ fontSize: 10, color: '#6b6880', marginTop: 1 }}>
+                      {item.type.replace('Node', '').replace(/([A-Z])/g, ' $1').trim() || 'node'}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div style={{ borderTop: '1px solid rgba(176,38,255,0.1)', marginTop: 4, padding: '6px 10px 2px', fontSize: 10, color: '#6b6880', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Click to add & connect</span>
+            <span>Esc to cancel</span>
+          </div>
+        </div>
+        </React.Fragment>
       )}
 
       {/* Floating + button */}
