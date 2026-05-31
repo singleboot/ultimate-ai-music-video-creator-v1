@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import useWorkflowStore from '../../store/workflowStore';
 
 const SECTIONS = [
   {
@@ -34,6 +35,103 @@ const SECTIONS = [
       { type: 'VideoPlayerNode', label: 'Video Player', icon: '\uD83C\uDFAC', color: '#6366f1' },
       { type: 'ImagePreviewNode', label: 'Image Preview', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
       { type: 'TextPreviewNode', label: 'Text Preview', icon: '\uD83D\uDCC4', color: '#b9b4d0' },
+    ],
+  },
+];
+
+const WORKFLOW_TEMPLATES = [
+  {
+    name: 'Music Video (Full)',
+    desc: 'Genre, lyrics, music, video & preview',
+    icon: '\uD83C\uDFAC',
+    color: '#b026ff',
+    nodes: [
+      { type: 'GenreNode', pos: { x: 50, y: 50 } },
+      { type: 'ThemeNode', pos: { x: 50, y: 200 } },
+      { type: 'LyricsGeneratorNode', pos: { x: 350, y: 80 } },
+      { type: 'MusicGeneratorNode', pos: { x: 650, y: 80 } },
+      { type: 'PromptCreatorNode', pos: { x: 350, y: 300 } },
+      { type: 'VideoGeneratorNode', pos: { x: 650, y: 320 } },
+      { type: 'AudioPlayerNode', pos: { x: 950, y: 80 } },
+      { type: 'VideoPlayerNode', pos: { x: 950, y: 320 } },
+    ],
+    edges: [
+      { s: 0, sh: 'output-0', t: 2, th: 'input-1' },
+      { s: 1, sh: 'output-0', t: 2, th: 'input-0' },
+      { s: 2, sh: 'output-0', t: 3, th: 'input-0' },
+      { s: 3, sh: 'output-0', t: 6, th: 'input-0' },
+      { s: 2, sh: 'output-0', t: 4, th: 'input-0' },
+      { s: 1, sh: 'output-0', t: 4, th: 'input-1' },
+      { s: 4, sh: 'output-0', t: 5, th: 'input-0' },
+      { s: 5, sh: 'output-0', t: 7, th: 'input-0' },
+    ],
+  },
+  {
+    name: 'Lyrics to Music',
+    desc: 'Input lyrics + generate music',
+    icon: '\uD83C\uDFB5',
+    color: '#7c3aed',
+    nodes: [
+      { type: 'GenreNode', pos: { x: 50, y: 20 } },
+      { type: 'LyricsInputNode', pos: { x: 50, y: 160 } },
+      { type: 'MusicGeneratorNode', pos: { x: 400, y: 80 } },
+      { type: 'AudioPlayerNode', pos: { x: 750, y: 80 } },
+    ],
+    edges: [
+      { s: 0, sh: 'output-0', t: 2, th: 'input-1' },
+      { s: 1, sh: 'output-0', t: 2, th: 'input-0' },
+      { s: 2, sh: 'output-0', t: 3, th: 'input-0' },
+    ],
+  },
+  {
+    name: 'Prompt to Video',
+    desc: 'Concept prompts + video generation',
+    icon: '\u2728',
+    color: '#f59e0b',
+    nodes: [
+      { type: 'ThemeNode', pos: { x: 50, y: 80 } },
+      { type: 'PromptCreatorNode', pos: { x: 350, y: 80 } },
+      { type: 'VideoGeneratorNode', pos: { x: 650, y: 80 } },
+      { type: 'VideoPlayerNode', pos: { x: 950, y: 80 } },
+    ],
+    edges: [
+      { s: 0, sh: 'output-0', t: 1, th: 'input-1' },
+      { s: 1, sh: 'output-0', t: 2, th: 'input-0' },
+      { s: 2, sh: 'output-0', t: 3, th: 'input-0' },
+    ],
+  },
+  {
+    name: 'Audio Cover',
+    desc: 'Upload audio, apply style cover',
+    icon: '\uD83C\uDFA4',
+    color: '#ec4899',
+    nodes: [
+      { type: 'AudioFileNode', pos: { x: 50, y: 80 } },
+      { type: 'GenreNode', pos: { x: 50, y: 240 } },
+      { type: 'CoverGeneratorNode', pos: { x: 400, y: 120 } },
+      { type: 'AudioPlayerNode', pos: { x: 750, y: 120 } },
+    ],
+    edges: [
+      { s: 0, sh: 'output-0', t: 2, th: 'input-0' },
+      { s: 1, sh: 'output-0', t: 2, th: 'input-1' },
+      { s: 2, sh: 'output-0', t: 3, th: 'input-0' },
+    ],
+  },
+  {
+    name: 'Text to Voiceover',
+    desc: 'TTS voiceover from text',
+    icon: '\uD83D\uDDE3\uFE0F',
+    color: '#06b6d4',
+    nodes: [
+      { type: 'LanguageNode', pos: { x: 50, y: 80 } },
+      { type: 'LyricsInputNode', pos: { x: 50, y: 220 } },
+      { type: 'TTSGeneratorNode', pos: { x: 400, y: 120 } },
+      { type: 'AudioPlayerNode', pos: { x: 750, y: 120 } },
+    ],
+    edges: [
+      { s: 0, sh: 'output-0', t: 2, th: 'input-1' },
+      { s: 1, sh: 'output-0', t: 2, th: 'input-0' },
+      { s: 2, sh: 'output-0', t: 3, th: 'input-0' },
     ],
   },
 ];
@@ -112,6 +210,34 @@ function SectionHeader({ title }) {
 }
 
 export default function NodeSidebar() {
+  const addNode = useWorkflowStore((s) => s.addNode);
+  const addEdge = (edge) => useWorkflowStore.getState().onEdgesChange([{ type: 'add', item: edge }]);
+  const clearWorkflow = useWorkflowStore((s) => s.clearWorkflow);
+
+  const loadTemplate = (tpl) => {
+    clearWorkflow();
+    const idMap = {};
+    tpl.nodes.forEach((n, i) => {
+      const id = `tpl_${Date.now()}_${i}`;
+      idMap[i] = id;
+      addNode({ id, type: n.type, position: { x: n.pos.x, y: n.pos.y }, data: {} });
+    });
+    // edges after nodes (async, but zustand is sync so microtask)
+    setTimeout(() => {
+      tpl.edges.forEach((e) => {
+        addEdge({
+          source: idMap[e.s],
+          sourceHandle: e.sh,
+          target: idMap[e.t],
+          targetHandle: e.th,
+          id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'smoothstep',
+          style: { stroke: '#b026ff', strokeWidth: 2 },
+        });
+      });
+    }, 0);
+  };
+
   return (
     <div
       style={{
@@ -147,6 +273,60 @@ export default function NodeSidebar() {
             {section.nodes.map((n) => (
               <DraggableItem key={n.type} {...n} />
             ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Workflow Templates */}
+      <div
+        style={{
+          fontSize: 11, fontWeight: 700, color: '#63d4ff',
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          padding: '0 14px 12px',
+          borderBottom: '1px solid rgba(99,212,255,0.15)',
+          marginBottom: 12,
+          marginTop: 20,
+        }}
+      >
+        Workflows
+      </div>
+      {WORKFLOW_TEMPLATES.map((tpl, i) => (
+        <div
+          key={i}
+          onClick={() => loadTemplate(tpl)}
+          style={{
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: `1px solid ${tpl.color}30`,
+            background: `${tpl.color}08`,
+            cursor: 'pointer',
+            marginBottom: 8,
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = `${tpl.color}15`;
+            e.currentTarget.style.borderColor = `${tpl.color}60`;
+            e.currentTarget.style.transform = 'translateX(4px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = `${tpl.color}08`;
+            e.currentTarget.style.borderColor = `${tpl.color}30`;
+            e.currentTarget.style.transform = 'translateX(0)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: `${tpl.color}20`, border: `1px solid ${tpl.color}40`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, flexShrink: 0,
+            }}>
+              {tpl.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{tpl.name}</div>
+              <div style={{ fontSize: 10, color: '#b9b4d0', marginTop: 1 }}>{tpl.desc}</div>
+            </div>
           </div>
         </div>
       ))}

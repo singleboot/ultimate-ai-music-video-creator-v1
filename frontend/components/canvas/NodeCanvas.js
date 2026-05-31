@@ -179,6 +179,7 @@ export default function NodeCanvas() {
   const reactFlowWrapper = useRef(null);
 
   const [suggestions, setSuggestions] = useState(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const mouseRef = useRef({ x: 0, y: 0 });
 
   const onUpdate = useCallback((nodeId, data) => updateNodeData(nodeId, data), [updateNodeData]);
@@ -378,7 +379,7 @@ export default function NodeCanvas() {
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{item.label}</div>
                   <div style={{ fontSize: 10, color: '#6b6880', marginTop: 1 }}>
-                    {suggestions.type === 'output' ? 'click to add & connect' : 'click to add & connect'}
+                    click to add & connect
                   </div>
                 </div>
               </div>
@@ -386,6 +387,140 @@ export default function NodeCanvas() {
           )}
         </div>
       )}
+
+      {/* Floating + button */}
+      <div
+        onClick={() => setShowQuickAdd(!showQuickAdd)}
+        style={{
+          position: 'absolute',
+          bottom: 100,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #b026ff, #7c3aed)',
+          border: 'none',
+          color: '#fff',
+          fontSize: 24,
+          fontWeight: 300,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 0 24px rgba(176,38,255,0.4)',
+          transition: 'transform 0.2s',
+          transform: showQuickAdd ? 'translateX(-50%) rotate(45deg)' : 'translateX(-50%)',
+          userSelect: 'none',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = showQuickAdd ? 'translateX(-50%) rotate(45deg) scale(1.1)' : 'translateX(-50%) scale(1.1)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = showQuickAdd ? 'translateX(-50%) rotate(45deg)' : 'translateX(-50%)'; }}
+      >
+        +
+      </div>
+
+      {/* Quick-add menu */}
+      {showQuickAdd && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 158,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            background: 'rgba(15,5,30,0.98)',
+            border: '1px solid rgba(176,38,255,0.3)',
+            borderRadius: 16,
+            padding: 8,
+            minWidth: 260,
+            maxHeight: 360,
+            overflowY: 'auto',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 48px rgba(0,0,0,0.6)',
+          }}
+        >
+          {QUICK_ADD_SECTIONS.map((section) => (
+            <div key={section.title} style={{ marginBottom: 4 }}>
+              <div style={{ padding: '6px 10px 4px', fontSize: 10, fontWeight: 700, color: '#6b6880', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {section.title}
+              </div>
+              {section.nodes.map((n) => (
+                <div
+                  key={n.type}
+                  onClick={() => {
+                    addNode({ id: getNodeId(), type: n.type, position: centerPos(nodes.length), data: {} });
+                    setShowQuickAdd(false);
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${n.color}15`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    background: `${n.color}20`, border: `1px solid ${n.color}40`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, flexShrink: 0,
+                  }}>
+                    {n.icon}
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{n.label}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+const QUICK_ADD_SECTIONS = [
+  {
+    title: 'INPUTS',
+    nodes: [
+      { type: 'ThemeNode', label: 'Theme', icon: '\uD83C\uDFAD', color: '#ff3bd4' },
+      { type: 'GenreNode', label: 'Genre', icon: '\uD83C\uDFB6', color: '#b026ff' },
+      { type: 'LanguageNode', label: 'Language', icon: '\uD83C\uDF10', color: '#63d4ff' },
+      { type: 'BPMNode', label: 'BPM', icon: '\u2699\uFE0F', color: '#f59e0b' },
+      { type: 'DurationNode', label: 'Duration', icon: '\u23F1\uFE0F', color: '#22c55e' },
+      { type: 'AudioFileNode', label: 'Audio File', icon: '\uD83C\uDFB5', color: '#ec4899' },
+      { type: 'LyricsInputNode', label: 'Lyrics', icon: '\uD83D\uDCDD', color: '#a855f7' },
+    ],
+  },
+  {
+    title: 'PROCESSING',
+    nodes: [
+      { type: 'LyricsGeneratorNode', label: 'Lyrics Generator', icon: '\u270D\uFE0F', color: '#a855f7' },
+      { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '\uD83C\uDFB5', color: '#b026ff' },
+      { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '\uD83C\uDFA4', color: '#ec4899' },
+      { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
+      { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
+      { type: 'VideoGeneratorNode', label: 'Video Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
+      { type: 'ImageGeneratorNode', label: 'Image Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
+    ],
+  },
+  {
+    title: 'OUTPUTS',
+    nodes: [
+      { type: 'AudioPlayerNode', label: 'Audio Player', icon: '\u25B6\uFE0F', color: '#b026ff' },
+      { type: 'VideoPlayerNode', label: 'Video Player', icon: '\uD83C\uDFAC', color: '#6366f1' },
+      { type: 'ImagePreviewNode', label: 'Image Preview', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
+      { type: 'TextPreviewNode', label: 'Text Preview', icon: '\uD83D\uDCC4', color: '#b9b4d0' },
+    ],
+  },
+];
+
+function centerPos(count) {
+  const x = 300 + Math.random() * 200;
+  const y = 60 + count * 40 + Math.random() * 100;
+  return { x, y };
 }
