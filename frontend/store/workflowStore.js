@@ -52,11 +52,24 @@ const useWorkflowStore = create(
         }));
       },
 
-      updateNodeSize: (nodeId, width, height) => {
+      resizeNodeCentered: (nodeId, newWidth, newHeight) => {
         set((state) => ({
-          nodes: state.nodes.map((n) =>
-            n.id === nodeId ? { ...n, width, height } : n
-          ),
+          nodes: state.nodes.map((n) => {
+            if (n.id !== nodeId) return n;
+            const oldW = n.width || n.measured?.width || 200;
+            const oldH = n.height || n.measured?.height || 80;
+            const dw = newWidth - oldW;
+            const dh = newHeight - oldH;
+            return {
+              ...n,
+              width: newWidth,
+              height: newHeight,
+              position: {
+                x: n.position.x - dw / 2,
+                y: n.position.y - dh / 2,
+              },
+            };
+          }),
         }));
       },
 

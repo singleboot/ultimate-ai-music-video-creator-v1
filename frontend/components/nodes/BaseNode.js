@@ -49,7 +49,7 @@ export default function BaseNode({
 }) {
   const [hovered, setHovered] = useState(false);
   const useLabeled = !!(inputHandles || outputHandles);
-  const updateNodeSize = useWorkflowStore((s) => s.updateNodeSize);
+  const resizeNodeCentered = useWorkflowStore((s) => s.resizeNodeCentered);
 
   return (
     <>
@@ -58,7 +58,7 @@ export default function BaseNode({
         minWidth={180}
         minHeight={60}
         isVisible={selected}
-        onResizeEnd={(_, params) => updateNodeSize(nodeId, params.width, params.height)}
+        onResizeEnd={(_, params) => resizeNodeCentered(nodeId, params.width, params.height)}
         handleStyle={{
           width: 8, height: 8, borderRadius: 2,
           background: color,
