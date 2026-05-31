@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #05010d;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 5, 30, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(176, 38, 255, 0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(176, 38, 255, 0.6);
+}
+
+.input-neon {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(176, 38, 255, 0.2);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+
+.input-neon:focus {
+  border-color: #b026ff;
+  box-shadow: 0 0 12px rgba(176, 38, 255, 0.25);
+}
+
+.input-neon::placeholder {
+  color: #6b6880;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
