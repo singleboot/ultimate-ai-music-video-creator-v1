@@ -180,20 +180,20 @@ export default function BaseNode({
             return (
               <React.Fragment key={h.id}>
                 <Handle
-                  type="target"
-                  position={Position.Left}
+                  type="source"
+                  position={Position.Right}
                   id={h.id}
+                  title={h.label}
                   style={{
-                    background: color,
+                    background: '#63d4ff',
                     width: 6, height: 6,
                     border: '2px solid rgba(15,5,30,0.95)',
-                    top, left: -3, zIndex: 2,
+                    top, right: -3, zIndex: 2,
                   }}
                 />
                 <div
-                  title={h.label}
                   style={{
-                    position: 'absolute', left: 4, top,
+                    position: 'absolute', right: 4, top,
                     transform: 'translateY(-50%)',
                     fontSize: 9, lineHeight: 1,
                     pointerEvents: 'none',
