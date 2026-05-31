@@ -106,7 +106,7 @@ const LyricsGeneratorNode = React.memo(function LyricsGeneratorNode({ data, id, 
 
   return (
     <BaseNode title="Lyrics Generator" color="#a855f7" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={lyricsInputs} outputHandles={lyricsOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         <div style={labelBase}>Structure</div>
         <select
           value={data.structure || 'Verse-Chorus'}
@@ -120,7 +120,7 @@ const LyricsGeneratorNode = React.memo(function LyricsGeneratorNode({ data, id, 
             {data.lyrics.substring(0, 200)}{data.lyrics.length > 200 ? '...' : ''}
           </div>
         )}
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#b026ff' }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#b026ff', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Lyrics'}
         </button>
       </div>
@@ -170,7 +170,7 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
 
   return (
     <BaseNode title="Music Generator" color="#b026ff" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={musicInputs} outputHandles={musicOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ ...btnBase, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(176,38,255,0.2)', fontSize: 9, padding: '3px 5px' }}>
           {showAdvanced ? 'Hide' : 'Show'} Advanced
         </button>
@@ -184,7 +184,7 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
             <input type="number" min={1} max={100} value={data.steps ?? 50} onChange={(e) => data.onUpdate?.(id, { steps: Number(e.target.value) })} style={inputBase} />
           </>
         )}
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#b026ff' }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#b026ff', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Music'}
         </button>
       </div>
@@ -224,8 +224,8 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
 
   return (
     <BaseNode title="Cover Generator" color="#ec4899" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={coverInputs} outputHandles={coverOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#ec4899' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#ec4899', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Cover'}
         </button>
       </div>
@@ -265,12 +265,12 @@ const TTSGeneratorNode = React.memo(function TTSGeneratorNode({ data, id, select
 
   return (
     <BaseNode title="TTS Voiceover" color="#06b6d4" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={ttsInputs} outputHandles={ttsOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         <div style={labelBase}>Voice</div>
         <select value={data.voice || 'female_warm'} onChange={(e) => data.onUpdate?.(id, { voice: e.target.value })} style={selectBase}>
           {VOICE_PRESETS.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
         </select>
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#06b6d4' }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#06b6d4', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Voiceover'}
         </button>
       </div>
@@ -310,8 +310,8 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
 
   return (
     <BaseNode title="Prompt Creator" color="#f59e0b" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={promptInputs} outputHandles={promptOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#f59e0b' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#f59e0b', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Prompts'}
         </button>
       </div>
@@ -358,7 +358,7 @@ const VideoGeneratorNode = React.memo(function VideoGeneratorNode({ data, id, se
 
   return (
     <BaseNode title="Video Generator" color="#6366f1" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={videoInputs} outputHandles={videoOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         <div style={{ display: 'flex', gap: 4 }}>
           {['t2v', 'i2v'].map((m) => (
             <button key={m} onClick={() => data.onUpdate?.(id, { mode: m })} style={{
@@ -378,7 +378,7 @@ const VideoGeneratorNode = React.memo(function VideoGeneratorNode({ data, id, se
         <select value={data.resolution || '1024x576'} onChange={(e) => data.onUpdate?.(id, { resolution: e.target.value })} style={selectBase}>
           {['512x512', '768x768', '1024x576', '1024x1024', '1920x1080'].map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#6366f1' }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#6366f1', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Video'}
         </button>
       </div>
@@ -419,7 +419,7 @@ const ImageGeneratorNode = React.memo(function ImageGeneratorNode({ data, id, se
 
   return (
     <BaseNode title="Image Generator" color="#14b8a6" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={imageInputs} outputHandles={imageOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         <div style={labelBase}>Prompt</div>
         <textarea value={data.prompt || ''} onChange={(e) => data.onUpdate?.(id, { prompt: e.target.value })} placeholder="Describe the image..." rows={3} style={{ ...inputBase, resize: 'vertical', minHeight: 60 }} />
         <div style={{ display: 'flex', gap: 8 }}>
@@ -432,7 +432,7 @@ const ImageGeneratorNode = React.memo(function ImageGeneratorNode({ data, id, se
             <input type="number" min={256} max={2048} step={64} value={data.height || 1024} onChange={(e) => data.onUpdate?.(id, { height: Number(e.target.value) })} style={inputBase} />
           </div>
         </div>
-        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#14b8a6' }}>
+        <button onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#14b8a6', marginTop: 'auto' }}>
           {loading ? <><SpinnerBtn /> Cancel</> : 'Generate Image'}
         </button>
       </div>

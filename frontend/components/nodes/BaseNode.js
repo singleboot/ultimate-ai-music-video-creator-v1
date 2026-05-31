@@ -86,6 +86,8 @@ export default function BaseNode({
           : isRunning ? `0 0 12px ${color}25` : '0 2px 8px rgba(0,0,0,0.4)',
         transition: resizing ? 'none' : 'border-color 0.2s, box-shadow 0.2s',
         position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
         ...overrideStyle,
       }}
     >
@@ -138,7 +140,7 @@ export default function BaseNode({
       </div>
 
       {/* Body */}
-      <div style={{ padding: '5px 8px 8px' }}>{children}</div>
+      <div style={{ padding: '5px 8px 8px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{children}</div>
 
       {/* Resize handle (bottom-right corner) */}
       {(selected || hovered) && (
