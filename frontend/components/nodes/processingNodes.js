@@ -116,7 +116,7 @@ const LyricsGeneratorNode = React.memo(function LyricsGeneratorNode({ data, id, 
           {STRUCTURES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         {data.lyrics && (
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', fontSize: 10, color: '#b9b4d0', padding: 6, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(176,38,255,0.1)', lineHeight: 1.5 }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', fontSize: 10, color: '#b9b4d0', padding: 6, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(176,38,255,0.1)', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {data.lyrics}
           </div>
         )}

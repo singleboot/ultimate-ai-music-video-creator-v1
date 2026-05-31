@@ -257,8 +257,10 @@ const LyricsInputNode = React.memo(function LyricsInputNode({ data, id, selected
       <textarea
         value={data.lyrics || ''}
         onChange={(e) => data.onUpdate?.(id, { lyrics: e.target.value })}
-        placeholder="Enter your lyrics..."
-        style={{ ...inputBase, resize: 'none', flex: 1, minHeight: 0, lineHeight: 1.6, fontSize: 11 }}
+        placeholder="[Verse]
+Your lyrics here..."
+
+        style={{ ...inputBase, resize: 'none', flex: 1, minHeight: 0, lineHeight: 1.6, fontSize: 11, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}
       />
     </BaseNode>
   );
