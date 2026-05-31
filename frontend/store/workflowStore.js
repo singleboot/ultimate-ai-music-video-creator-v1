@@ -52,6 +52,14 @@ const useWorkflowStore = create(
         }));
       },
 
+      updateNodeSize: (nodeId, width, height) => {
+        set((state) => ({
+          nodes: state.nodes.map((n) =>
+            n.id === nodeId ? { ...n, width, height } : n
+          ),
+        }));
+      },
+
       setSelectedNode: (nodeId) => {
         set({ selectedNodeId: nodeId });
       },
@@ -145,15 +153,8 @@ function applyNodeChanges(nodes, changes) {
         next[idx] = {
           ...next[idx],
           measured: { ...next[idx].measured, ...change.dimensions },
-        };
-      }
-    } else if (change.type === 'resize') {
-      const idx = next.findIndex((n) => n.id === change.id);
-      if (idx >= 0 && change.dimensions) {
-        next[idx] = {
-          ...next[idx],
-          width: change.dimensions.width,
-          height: change.dimensions.height,
+          width: change.dimensions.width || next[idx].width,
+          height: change.dimensions.height || next[idx].height,
         };
       }
     } else if (change.type === 'remove') {

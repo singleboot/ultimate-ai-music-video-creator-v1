@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Handle, Position, NodeResizer } from '@xyflow/react';
+import useWorkflowStore from '../../store/workflowStore';
 
 const spinnerKeyframes = `
 @keyframes bv-spinner {
@@ -48,6 +49,7 @@ export default function BaseNode({
 }) {
   const [hovered, setHovered] = useState(false);
   const useLabeled = !!(inputHandles || outputHandles);
+  const updateNodeSize = useWorkflowStore((s) => s.updateNodeSize);
 
   return (
     <>
@@ -56,6 +58,7 @@ export default function BaseNode({
         minWidth={180}
         minHeight={60}
         isVisible={selected}
+        onResizeEnd={(_, params) => updateNodeSize(nodeId, params.width, params.height)}
         handleStyle={{
           width: 8, height: 8, borderRadius: 2,
           background: color,
