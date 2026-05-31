@@ -67,6 +67,9 @@ export default function BaseNode({
   const nodeW = node?.width || undefined;
   const nodeH = node?.height || undefined;
 
+  const inCount = inputHandles?.length || 0;
+  const outCount = outputHandles?.length || 0;
+
   return (
     <div
       data-nodeid={nodeId}
@@ -140,38 +143,11 @@ export default function BaseNode({
         )}
       </div>
 
-      {/* Handle labels row (inside node) */}
-      {useLabeled && (inputHandles?.length > 0 || outputHandles?.length > 0) && (
-        <div style={{
-          padding: '0 8px 4px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          flexWrap: 'wrap',
-        }}>
-          {inputHandles?.map((h) => (
-            <span key={h.id} style={{
-              fontSize: 8, color: '#b9b4d0',
-              display: 'inline-flex', alignItems: 'center', gap: 2,
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'inline-block' }} />
-              {h.icon} {h.label}
-            </span>
-          ))}
-          {outputHandles?.map((h) => (
-            <span key={h.id} style={{
-              fontSize: 8, color: '#b9b4d0',
-              display: 'inline-flex', alignItems: 'center', gap: 2,
-            }}>
-              {h.icon} {h.label}
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#63d4ff', display: 'inline-block' }} />
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Body */}
-      <div style={{ padding: '0 8px 8px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        padding: `0 ${outCount > 0 ? '24' : '8'}px 8px ${inCount > 0 ? '24' : '8'}px`,
+        flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+      }}>
         {children}
       </div>
 
@@ -197,23 +173,36 @@ export default function BaseNode({
         </div>
       )}
 
-      {/* Input handles */}
+      {/* Input handles + icon labels */}
       {useLabeled && inputHandles
         ? inputHandles.map((h, i) => {
             const top = `${28 + 20 * i}px`;
             return (
-              <Handle
-                key={h.id}
-                type="target"
-                position={Position.Left}
-                id={h.id}
-                style={{
-                  background: color,
-                  width: 6, height: 6,
-                  border: '2px solid rgba(15,5,30,0.95)',
-                  top, left: -3, zIndex: 2,
-                }}
-              />
+              <React.Fragment key={h.id}>
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={h.id}
+                  style={{
+                    background: color,
+                    width: 6, height: 6,
+                    border: '2px solid rgba(15,5,30,0.95)',
+                    top, left: -3, zIndex: 2,
+                  }}
+                />
+                <div
+                  title={h.label}
+                  style={{
+                    position: 'absolute', left: 4, top,
+                    transform: 'translateY(-50%)',
+                    fontSize: 9, lineHeight: 1,
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                >
+                  {h.icon}
+                </div>
+              </React.Fragment>
             );
           })
         : hasInput && !useLabeled &&
@@ -233,23 +222,36 @@ export default function BaseNode({
             />
           ))}
 
-      {/* Output handles */}
+      {/* Output handles + icon labels */}
       {useLabeled && outputHandles
         ? outputHandles.map((h, i) => {
             const top = `${28 + 20 * i}px`;
             return (
-              <Handle
-                key={h.id}
-                type="source"
-                position={Position.Right}
-                id={h.id}
-                style={{
-                  background: '#63d4ff',
-                  width: 6, height: 6,
-                  border: '2px solid rgba(15,5,30,0.95)',
-                  top, right: -3, zIndex: 2,
-                }}
-              />
+              <React.Fragment key={h.id}>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={h.id}
+                  style={{
+                    background: '#63d4ff',
+                    width: 6, height: 6,
+                    border: '2px solid rgba(15,5,30,0.95)',
+                    top, right: -3, zIndex: 2,
+                  }}
+                />
+                <div
+                  title={h.label}
+                  style={{
+                    position: 'absolute', right: 4, top,
+                    transform: 'translateY(-50%)',
+                    fontSize: 9, lineHeight: 1,
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                >
+                  {h.icon}
+                </div>
+              </React.Fragment>
             );
           })
         : hasOutput && !useLabeled &&
