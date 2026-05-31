@@ -25,22 +25,33 @@ const LANGUAGES = [
   { code: 'ml', name: 'Malayalam' },
 ];
 
-const GenreNode = React.memo(function GenreNode({ data, id }) {
+const genreOut = [{ id: 'output-0', label: 'genre', icon: '\uD83C\uDFB6' }];
+const langOut = [{ id: 'output-0', label: 'language', icon: '\uD83C\uDF10' }];
+const themeOut = [{ id: 'output-0', label: 'theme', icon: '\uD83C\uDFAD' }];
+const bpmOut = [{ id: 'output-0', label: 'bpm', icon: '\u2699\uFE0F' }];
+const durOut = [{ id: 'output-0', label: 'duration', icon: '\u23F1\uFE0F' }];
+const audioFileOut = [
+  { id: 'output-0', label: 'audio', icon: '\uD83C\uDFB5' },
+  { id: 'output-1', label: 'file', icon: '\uD83D\uDCC1' },
+];
+const lyricsOut = [{ id: 'output-0', label: 'lyrics', icon: '\uD83D\uDCDD' }];
+
+const GenreNode = React.memo(function GenreNode({ data, id, selected }) {
   const [open, setOpen] = useState(false);
-  const selected = data.genre || [];
+  const selectedGenres = data.genre || [];
 
   const toggle = useCallback(
     (g) => {
-      const next = selected.includes(g)
-        ? selected.filter((x) => x !== g)
-        : [...selected, g];
+      const next = selectedGenres.includes(g)
+        ? selectedGenres.filter((x) => x !== g)
+        : [...selectedGenres, g];
       data.onUpdate?.(id, { genre: next });
     },
-    [selected, data, id]
+    [selectedGenres, data, id]
   );
 
   return (
-    <BaseNode title="Genre" color="#b026ff" hasOutput outputCount={1}>
+    <BaseNode title="Genre" color="#b026ff" selected={selected} nodeId={id} data={data} outputHandles={genreOut}>
       <div style={{ position: 'relative' }}>
         <div style={labelBase}>Genre / Style</div>
         <button
@@ -56,10 +67,10 @@ const GenreNode = React.memo(function GenreNode({ data, id }) {
             alignItems: 'center',
           }}
         >
-          {selected.length === 0 ? (
+          {selectedGenres.length === 0 ? (
             <span style={{ color: '#6b6880' }}>Select genres...</span>
           ) : (
-            selected.map((g) => (
+            selectedGenres.map((g) => (
               <span
                 key={g}
                 style={{
@@ -76,10 +87,7 @@ const GenreNode = React.memo(function GenreNode({ data, id }) {
               >
                 {g}
                 <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggle(g);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); toggle(g); }}
                   style={{ cursor: 'pointer', opacity: 0.7, fontSize: 13 }}
                 >
                   x
@@ -93,9 +101,7 @@ const GenreNode = React.memo(function GenreNode({ data, id }) {
             style={{
               position: 'absolute',
               top: '100%',
-              left: 0,
-              right: 0,
-              zIndex: 50,
+              left: 0, right: 0, zIndex: 50,
               marginTop: 4,
               background: 'rgba(15,5,30,0.98)',
               border: '1px solid rgba(176,38,255,0.3)',
@@ -115,9 +121,9 @@ const GenreNode = React.memo(function GenreNode({ data, id }) {
                 style={{
                   padding: '4px 10px',
                   borderRadius: 6,
-                  border: `1px solid ${selected.includes(g) ? '#b026ff' : 'rgba(176,38,255,0.2)'}`,
-                  background: selected.includes(g) ? '#b026ff30' : 'rgba(255,255,255,0.05)',
-                  color: selected.includes(g) ? '#fff' : '#b9b4d0',
+                  border: `1px solid ${selectedGenres.includes(g) ? '#b026ff' : 'rgba(176,38,255,0.2)'}`,
+                  background: selectedGenres.includes(g) ? '#b026ff30' : 'rgba(255,255,255,0.05)',
+                  color: selectedGenres.includes(g) ? '#fff' : '#b9b4d0',
                   fontSize: 11,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -134,9 +140,9 @@ const GenreNode = React.memo(function GenreNode({ data, id }) {
   );
 });
 
-const LanguageNode = React.memo(function LanguageNode({ data, id }) {
+const LanguageNode = React.memo(function LanguageNode({ data, id, selected }) {
   return (
-    <BaseNode title="Language" color="#63d4ff" hasOutput outputCount={1}>
+    <BaseNode title="Language" color="#63d4ff" selected={selected} nodeId={id} data={data} outputHandles={langOut}>
       <div style={labelBase}>Language</div>
       <select
         value={data.language || 'en'}
@@ -144,58 +150,42 @@ const LanguageNode = React.memo(function LanguageNode({ data, id }) {
         style={selectBase}
       >
         {LANGUAGES.map((l) => (
-          <option key={l.code} value={l.code}>
-            {l.name}
-          </option>
+          <option key={l.code} value={l.code}>{l.name}</option>
         ))}
       </select>
     </BaseNode>
   );
 });
 
-const ThemeNode = React.memo(function ThemeNode({ data, id }) {
+const ThemeNode = React.memo(function ThemeNode({ data, id, selected }) {
   return (
-    <BaseNode title="Theme" color="#ff3bd4" hasOutput outputCount={1}>
+    <BaseNode title="Theme" color="#ff3bd4" selected={selected} nodeId={id} data={data} outputHandles={themeOut}>
       <div style={labelBase}>Theme / Story</div>
       <textarea
         value={data.theme || ''}
         onChange={(e) => data.onUpdate?.(id, { theme: e.target.value })}
         placeholder="Describe the theme or story..."
         rows={4}
-        style={{
-          ...inputBase,
-          resize: 'vertical',
-          minHeight: 80,
-        }}
+        style={{ ...inputBase, resize: 'vertical', minHeight: 80 }}
       />
     </BaseNode>
   );
 });
 
-const BPMNode = React.memo(function BPMNode({ data, id }) {
+const BPMNode = React.memo(function BPMNode({ data, id, selected }) {
   const bpm = data.bpm ?? 120;
   return (
-    <BaseNode title="BPM" color="#f59e0b" hasOutput outputCount={1}>
+    <BaseNode title="BPM" color="#f59e0b" selected={selected} nodeId={id} data={data} outputHandles={bpmOut}>
       <div style={labelBase}>Tempo (BPM)</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <input
           type="range"
-          min={60}
-          max={200}
+          min={60} max={200}
           value={bpm}
           onChange={(e) => data.onUpdate?.(id, { bpm: Number(e.target.value) })}
           style={{ flex: 1, accentColor: '#b026ff' }}
         />
-        <span
-          style={{
-            fontFamily: 'monospace',
-            fontSize: 14,
-            fontWeight: 700,
-            minWidth: 36,
-            textAlign: 'right',
-            color: '#f59e0b',
-          }}
-        >
+        <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, minWidth: 36, textAlign: 'right', color: '#f59e0b' }}>
           {bpm}
         </span>
       </div>
@@ -203,14 +193,13 @@ const BPMNode = React.memo(function BPMNode({ data, id }) {
   );
 });
 
-const DurationNode = React.memo(function DurationNode({ data, id }) {
+const DurationNode = React.memo(function DurationNode({ data, id, selected }) {
   return (
-    <BaseNode title="Duration" color="#22c55e" hasOutput outputCount={1}>
+    <BaseNode title="Duration" color="#22c55e" selected={selected} nodeId={id} data={data} outputHandles={durOut}>
       <div style={labelBase}>Duration (seconds)</div>
       <input
         type="number"
-        min={1}
-        max={600}
+        min={1} max={600}
         value={data.duration ?? 30}
         onChange={(e) => data.onUpdate?.(id, { duration: Number(e.target.value) })}
         style={inputBase}
@@ -219,24 +208,19 @@ const DurationNode = React.memo(function DurationNode({ data, id }) {
   );
 });
 
-const AudioFileNode = React.memo(function AudioFileNode({ data, id }) {
+const AudioFileNode = React.memo(function AudioFileNode({ data, id, selected }) {
   const handleFile = useCallback(
     (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const url = URL.createObjectURL(file);
-      data.onUpdate?.(id, {
-        audioFileName: file.name,
-        audioUrl: url,
-        audioFile: file,
-        duration: data.duration ?? 0,
-      });
+      data.onUpdate?.(id, { audioFileName: file.name, audioUrl: url, audioFile: file, duration: data.duration ?? 0 });
     },
     [data, id]
   );
 
   return (
-    <BaseNode title="Audio File" color="#ec4899" hasInput={false} hasOutput outputCount={2}>
+    <BaseNode title="Audio File" color="#ec4899" selected={selected} nodeId={id} data={data} outputHandles={audioFileOut}>
       <div style={labelBase}>Upload Audio</div>
       <label
         style={{
@@ -250,29 +234,16 @@ const AudioFileNode = React.memo(function AudioFileNode({ data, id }) {
           transition: 'border-color 0.2s',
         }}
       >
-        <input
-          type="file"
-          accept="audio/*"
-          onChange={handleFile}
-          style={{ display: 'none' }}
-        />
+        <input type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} />
         {data.audioFileName ? (
           <div>
-            <div style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>
-              {data.audioFileName}
-            </div>
-            <div style={{ color: '#b9b4d0', fontSize: 10, marginTop: 4 }}>
-              Click to change
-            </div>
+            <div style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>{data.audioFileName}</div>
+            <div style={{ color: '#b9b4d0', fontSize: 10, marginTop: 4 }}>Click to change</div>
           </div>
         ) : (
           <div>
-            <div style={{ color: '#b026ff', fontSize: 20, marginBottom: 4 }}>
-              &#x2601;
-            </div>
-            <div style={{ color: '#b9b4d0', fontSize: 11 }}>
-              Drop audio or click to browse
-            </div>
+            <div style={{ color: '#b026ff', fontSize: 20, marginBottom: 4 }}>{'\u2601'}</div>
+            <div style={{ color: '#b9b4d0', fontSize: 11 }}>Drop audio or click to browse</div>
           </div>
         )}
       </label>
@@ -280,21 +251,16 @@ const AudioFileNode = React.memo(function AudioFileNode({ data, id }) {
   );
 });
 
-const LyricsInputNode = React.memo(function LyricsInputNode({ data, id }) {
+const LyricsInputNode = React.memo(function LyricsInputNode({ data, id, selected }) {
   return (
-    <BaseNode title="Lyrics Input" color="#a855f7" hasOutput outputCount={1}>
+    <BaseNode title="Lyrics Input" color="#a855f7" selected={selected} nodeId={id} data={data} outputHandles={lyricsOut}>
       <div style={labelBase}>Lyrics</div>
       <textarea
         value={data.lyrics || ''}
         onChange={(e) => data.onUpdate?.(id, { lyrics: e.target.value })}
         placeholder="Enter your lyrics..."
         rows={6}
-        style={{
-          ...inputBase,
-          resize: 'vertical',
-          minHeight: 120,
-          lineHeight: 1.5,
-        }}
+        style={{ ...inputBase, resize: 'vertical', minHeight: 120, lineHeight: 1.5 }}
       />
     </BaseNode>
   );

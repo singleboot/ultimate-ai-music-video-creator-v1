@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef, useMemo } from 'react';
+import React, { useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -47,7 +47,9 @@ export default function NodeCanvas() {
   const onNodesChange = useWorkflowStore((s) => s.onNodesChange);
   const onEdgesChange = useWorkflowStore((s) => s.onEdgesChange);
   const addNode = useWorkflowStore((s) => s.addNode);
+  const removeNode = useWorkflowStore((s) => s.removeNode);
   const setSelectedNode = useWorkflowStore((s) => s.setSelectedNode);
+  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
 
   const reactFlowWrapper = useRef(null);
@@ -59,12 +61,19 @@ export default function NodeCanvas() {
     [updateNodeData]
   );
 
+  const onDelete = useCallback(
+    (nodeId) => {
+      removeNode(nodeId);
+    },
+    [removeNode]
+  );
+
   const enrichedNodes = useMemo(() => {
     return nodes.map((n) => ({
       ...n,
-      data: { ...n.data, onUpdate },
+      data: { ...n.data, onUpdate, onDelete },
     }));
-  }, [nodes, onUpdate]);
+  }, [nodes, onUpdate, onDelete]);
 
   const onNodeClick = useCallback(
     (_event, node) => {
@@ -76,6 +85,20 @@ export default function NodeCanvas() {
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
   }, [setSelectedNode]);
+
+  // Keyboard delete
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+        const target = e.target;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        e.preventDefault();
+        removeNode(selectedNodeId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNodeId, removeNode]);
 
   const onConnect = useCallback(
     (connection) => {
@@ -103,29 +126,14 @@ export default function NodeCanvas() {
       event.preventDefault();
       const nodeType = event.dataTransfer.getData('application/reactflow');
       if (!nodeType) return;
-
-      const position = {
-        x: event.clientX - 280,
-        y: event.clientY - 56,
-      };
-
-      const newNode = {
-        id: getNodeId(),
-        type: nodeType,
-        position,
-        data: {},
-      };
-
-      addNode(newNode);
+      const position = { x: event.clientX - 280, y: event.clientY - 56 };
+      addNode({ id: getNodeId(), type: nodeType, position, data: {} });
     },
     [addNode]
   );
 
   return (
-    <div
-      ref={reactFlowWrapper}
-      style={{ width: '100%', height: '100%', background: '#05010d' }}
-    >
+    <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', background: '#05010d' }}>
       <ReactFlow
         nodes={enrichedNodes}
         edges={edges}
@@ -139,32 +147,13 @@ export default function NodeCanvas() {
         nodeTypes={nodeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{
-          style: { stroke: '#b026ff', strokeWidth: 2 },
-          type: 'smoothstep',
-        }}
+        defaultEdgeOptions={{ style: { stroke: '#b026ff', strokeWidth: 2 }, type: 'smoothstep' }}
         style={{ background: '#05010d' }}
+        deleteKeyCode={null}
       >
         <Background color="rgba(176,38,255,0.15)" gap={24} size={1} />
-        <Controls
-          style={{
-            borderRadius: 12,
-            border: '1px solid rgba(176,38,255,0.3)',
-            overflow: 'hidden',
-            background: 'rgba(15,5,30,0.95)',
-          }}
-        />
-        <MiniMap
-          style={{
-            height: 120,
-            width: 180,
-            borderRadius: 12,
-            border: '1px solid rgba(176,38,255,0.3)',
-            background: 'rgba(15,5,30,0.9)',
-          }}
-          nodeColor="#b026ff"
-          maskColor="rgba(5,1,13,0.8)"
-        />
+        <Controls style={{ borderRadius: 12, border: '1px solid rgba(176,38,255,0.3)', overflow: 'hidden', background: 'rgba(15,5,30,0.95)' }} />
+        <MiniMap style={{ height: 120, width: 180, borderRadius: 12, border: '1px solid rgba(176,38,255,0.3)', background: 'rgba(15,5,30,0.9)' }} nodeColor="#b026ff" maskColor="rgba(5,1,13,0.8)" />
       </ReactFlow>
     </div>
   );
