@@ -171,7 +171,7 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
   return (
     <BaseNode title="Music Generator" color="#b026ff" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={musicInputs} outputHandles={musicOut}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ ...btnBase, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(176,38,255,0.2)', fontSize: 10, padding: '5px 10px' }}>
+        <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ ...btnBase, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(176,38,255,0.2)', fontSize: 9, padding: '3px 5px' }}>
           {showAdvanced ? 'Hide' : 'Show'} Advanced
         </button>
         {showAdvanced && (

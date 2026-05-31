@@ -40,7 +40,7 @@ const AudioPlayerNode = React.memo(function AudioPlayerNode({ data, id, selected
             <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #b026ff, #ff3bd4)', borderRadius: 8, transition: 'width 0.1s linear' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={toggle} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#b026ff', color: '#fff', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <button onClick={toggle} style={{ width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#b026ff', color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               {playing ? '\u275A\u275A' : '\u25B6'}
             </button>
             <span style={{ fontSize: 11, color: '#b9b4d0', fontFamily: 'monospace' }}>{fmt(cur)} / {fmt(dur)}</span>
@@ -66,12 +66,12 @@ const VideoPlayerNode = React.memo(function VideoPlayerNode({ data, id, selected
           <div style={{ borderRadius: 10, overflow: 'hidden', background: '#000', position: 'relative' }}>
             <video ref={videoRef} src={url} style={{ width: '100%', display: 'block', borderRadius: 10 }} controls={false} onClick={toggle} />
             {!playing && (
-              <button onClick={toggle} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(99,102,241,0.85)', color: '#fff', fontSize: 16, cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+              <button onClick={toggle} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(99,102,241,0.85)', color: '#fff', fontSize: 11, cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
                 {'\u25B6'}
               </button>
             )}
           </div>
-          <button onClick={toggle} style={{ padding: '6px 0', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={toggle} style={{ padding: '3px 0', borderRadius: 4, border: 'none', background: '#6366f1', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             {playing ? 'Pause' : 'Play'}
           </button>
         </div>

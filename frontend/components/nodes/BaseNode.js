@@ -286,12 +286,12 @@ const labelBase = {
 
 const btnBase = {
   width: '100%',
-  padding: '6px 12px',
-  borderRadius: 8,
+  padding: '3px 6px',
+  borderRadius: 4,
   border: 'none',
   background: '#b026ff',
   color: '#fff',
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 600,
   cursor: 'pointer',
   fontFamily: 'inherit',
@@ -299,7 +299,7 @@ const btnBase = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 4,
+  gap: 3,
 };
 
 export { inputBase, selectBase, labelBase, btnBase };
