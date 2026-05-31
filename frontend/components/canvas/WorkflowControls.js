@@ -62,6 +62,39 @@ export default function WorkflowControls({ onRun }) {
         boxSizing: 'border-box',
       }}
     >
+      {/* Home button */}
+      <a
+        href="/"
+        style={{
+          padding: '6px 12px',
+          borderRadius: 8,
+          border: '1px solid rgba(176,38,255,0.2)',
+          background: 'rgba(255,255,255,0.04)',
+          color: '#b9b4d0',
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          textDecoration: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(176,38,255,0.12)';
+          e.currentTarget.style.borderColor = 'rgba(176,38,255,0.4)';
+          e.currentTarget.style.color = '#fff';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+          e.currentTarget.style.borderColor = 'rgba(176,38,255,0.2)';
+          e.currentTarget.style.color = '#b9b4d0';
+        }}
+      >
+        {'\u2190'} Home
+      </a>
+
       {/* Logo */}
       <div
         style={{
