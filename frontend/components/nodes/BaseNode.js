@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, NodeResizer } from '@xyflow/react';
 
 const spinnerKeyframes = `
 @keyframes bv-spinner {
@@ -14,8 +14,8 @@ function SpinnerSmall() {
     <span
       style={{
         display: 'inline-block',
-        width: 14, height: 14,
-        border: '2px solid rgba(255,255,255,0.3)',
+        width: 12, height: 12,
+        border: '2px solid rgba(255,255,255,0.25)',
         borderTopColor: '#fff',
         borderRadius: '50%',
         animation: 'bv-spinner 0.7s linear infinite',
@@ -25,9 +25,9 @@ function SpinnerSmall() {
 }
 
 function handleTopOffset(count, index) {
-  const headerH = 41;
-  const spacing = 26;
-  return `${headerH + spacing * index + 10}px`;
+  const headerH = 36;
+  const spacing = 24;
+  return `${headerH + spacing * index + 8}px`;
 }
 
 export default function BaseNode({
@@ -52,25 +52,34 @@ export default function BaseNode({
   return (
     <>
       <style>{spinnerKeyframes}</style>
-
+      <NodeResizer
+        minWidth={180}
+        minHeight={60}
+        isVisible={selected}
+        handleStyle={{
+          width: 8, height: 8, borderRadius: 2,
+          background: color,
+          border: '2px solid rgba(15,5,30,0.95)',
+        }}
+        lineStyle={{
+          borderColor: 'rgba(176,38,255,0.2)',
+        }}
+      />
       <div
         data-nodeid={nodeId}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           background: 'rgba(15,5,30,0.95)',
-          border: `1px solid ${selected ? color : isRunning ? color : 'rgba(176,38,255,0.3)'}`,
-          borderRadius: 16,
+          border: `1px solid ${selected ? color : isRunning ? color : 'rgba(176,38,255,0.2)'}`,
+          borderRadius: 12,
           color: '#fff',
-          minWidth: 220,
-          maxWidth: 300,
+          minWidth: 180,
           fontFamily: 'inherit',
           boxShadow: selected
-            ? `0 0 24px ${color}50, 0 4px 20px rgba(0,0,0,0.4)`
-            : isRunning
-              ? `0 0 20px ${color}40`
-              : '0 4px 20px rgba(0,0,0,0.4)',
-          transition: 'border-color 0.3s, box-shadow 0.3s',
+            ? `0 0 20px ${color}40, 0 2px 12px rgba(0,0,0,0.4)`
+            : isRunning ? `0 0 16px ${color}30` : '0 2px 12px rgba(0,0,0,0.4)',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
           position: 'relative',
           ...overrideStyle,
         }}
@@ -78,31 +87,24 @@ export default function BaseNode({
         {/* Header */}
         <div
           style={{
-            padding: '10px 14px',
-            borderBottom: '1px solid rgba(176,38,255,0.15)',
+            padding: '7px 10px',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            background: `linear-gradient(135deg, ${color}18, transparent)`,
-            borderRadius: '16px 16px 0 0',
+            gap: 6,
             position: 'relative',
           }}
         >
           <div
             style={{
-              width: 8, height: 8, borderRadius: '50%',
+              width: 6, height: 6, borderRadius: '50%',
               background: isRunning ? color : '#4ade80',
-              boxShadow: isRunning ? `0 0 8px ${color}` : '0 0 6px #4ade8080',
-              animation: isRunning ? 'bv-spinner 1s linear infinite' : 'none',
               flexShrink: 0,
             }}
           />
-          <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.03em', flex: 1 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>
             {title}
           </span>
           {isRunning && <SpinnerSmall />}
-
-          {/* Delete button */}
           {(selected || hovered) && nodeId && (
             <div
               onClick={(e) => {
@@ -111,21 +113,20 @@ export default function BaseNode({
                 data.onDelete?.(nodeId);
               }}
               style={{
-                width: 20, height: 20, borderRadius: 6,
-                background: 'rgba(239,68,68,0.15)',
-                border: '1px solid rgba(239,68,68,0.3)',
+                width: 18, height: 18, borderRadius: 4,
+                background: 'rgba(239,68,68,0.12)',
                 color: '#ef4444',
-                fontSize: 11, fontWeight: 700,
+                fontSize: 10, fontWeight: 700,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flexShrink: 0,
                 lineHeight: 1,
                 transition: 'background 0.15s',
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
             >
               x
             </div>
@@ -133,7 +134,7 @@ export default function BaseNode({
         </div>
 
         {/* Body */}
-        <div style={{ padding: '12px 14px' }}>{children}</div>
+        <div style={{ padding: '8px 10px 10px' }}>{children}</div>
 
         {/* Input handles */}
         {useLabeled && inputHandles
@@ -145,10 +146,10 @@ export default function BaseNode({
                   id={h.id}
                   style={{
                     background: color,
-                    width: 10, height: 10,
+                    width: 8, height: 8,
                     border: '2px solid rgba(15,5,30,0.95)',
                     top: handleTopOffset(inputHandles.length, i),
-                    left: -5,
+                    left: -4,
                     zIndex: 2,
                   }}
                 />
@@ -157,19 +158,18 @@ export default function BaseNode({
                     position: 'absolute',
                     left: 0,
                     top: handleTopOffset(inputHandles.length, i),
-                    transform: 'translateX(12px) translateY(-50%)',
+                    transform: 'translateX(10px) translateY(-50%)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3,
-                    fontSize: 10,
+                    gap: 2,
+                    fontSize: 9,
                     color: '#b9b4d0',
-                    fontWeight: 500,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <span style={{ fontSize: 11 }}>{h.icon}</span>
-                  <span>{h.label}</span>
+                  <span style={{ fontSize: 10 }}>{h.icon}</span>
+                  <span style={{ marginLeft: 1 }}>{h.label}</span>
                 </div>
               </div>
             ))
@@ -182,9 +182,9 @@ export default function BaseNode({
                 id={`input-${i}`}
                 style={{
                   background: '#b026ff',
-                  width: 10, height: 10,
+                  width: 8, height: 8,
                   border: '2px solid rgba(15,5,30,0.95)',
-                  top: -5,
+                  top: -4,
                   left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
                 }}
               />
@@ -200,10 +200,10 @@ export default function BaseNode({
                   id={h.id}
                   style={{
                     background: '#63d4ff',
-                    width: 10, height: 10,
+                    width: 8, height: 8,
                     border: '2px solid rgba(15,5,30,0.95)',
                     top: handleTopOffset(outputHandles.length, i),
-                    right: -5,
+                    right: -4,
                     zIndex: 2,
                   }}
                 />
@@ -212,19 +212,18 @@ export default function BaseNode({
                     position: 'absolute',
                     right: 0,
                     top: handleTopOffset(outputHandles.length, i),
-                    transform: 'translateX(-12px) translateY(-50%)',
+                    transform: 'translateX(-10px) translateY(-50%)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3,
-                    fontSize: 10,
+                    gap: 2,
+                    fontSize: 9,
                     color: '#b9b4d0',
-                    fontWeight: 500,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
                     flexDirection: 'row-reverse',
                   }}
                 >
-                  <span style={{ fontSize: 11 }}>{h.icon}</span>
+                  <span style={{ fontSize: 10 }}>{h.icon}</span>
                   <span>{h.label}</span>
                 </div>
               </div>
@@ -238,9 +237,9 @@ export default function BaseNode({
                 id={`output-${i}`}
                 style={{
                   background: '#63d4ff',
-                  width: 10, height: 10,
+                  width: 8, height: 8,
                   border: '2px solid rgba(15,5,30,0.95)',
-                  bottom: -5,
+                  bottom: -4,
                   left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
                 }}
               />
@@ -252,54 +251,52 @@ export default function BaseNode({
 
 const inputBase = {
   width: '100%',
-  padding: '7px 10px',
-  borderRadius: 10,
-  border: '1px solid rgba(176,38,255,0.2)',
-  background: 'rgba(255,255,255,0.05)',
+  padding: '6px 8px',
+  borderRadius: 8,
+  border: '1px solid rgba(176,38,255,0.15)',
+  background: 'rgba(255,255,255,0.04)',
   color: '#fff',
-  fontSize: 12,
+  fontSize: 11,
   outline: 'none',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
-  transition: 'border-color 0.2s',
+  transition: 'border-color 0.15s',
 };
 
 const selectBase = {
   ...inputBase,
   appearance: 'none',
   cursor: 'pointer',
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b9b4d0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23b9b4d0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
   backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 10px center',
-  paddingRight: 30,
+  backgroundPosition: 'right 8px center',
+  paddingRight: 26,
 };
 
 const labelBase = {
   display: 'block',
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 500,
   color: '#b9b4d0',
-  marginBottom: 4,
-  letterSpacing: '0.05em',
-  textTransform: 'uppercase',
+  marginBottom: 3,
 };
 
 const btnBase = {
   width: '100%',
-  padding: '8px 14px',
-  borderRadius: 10,
+  padding: '6px 12px',
+  borderRadius: 8,
   border: 'none',
   background: '#b026ff',
   color: '#fff',
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 600,
   cursor: 'pointer',
   fontFamily: 'inherit',
-  transition: 'background 0.2s, opacity 0.2s',
+  transition: 'background 0.15s, opacity 0.15s',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 6,
+  gap: 4,
 };
 
 export { inputBase, selectBase, labelBase, btnBase };

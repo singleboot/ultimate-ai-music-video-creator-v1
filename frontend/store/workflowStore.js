@@ -147,6 +147,15 @@ function applyNodeChanges(nodes, changes) {
           measured: { ...next[idx].measured, ...change.dimensions },
         };
       }
+    } else if (change.type === 'resize') {
+      const idx = next.findIndex((n) => n.id === change.id);
+      if (idx >= 0 && change.dimensions) {
+        next[idx] = {
+          ...next[idx],
+          width: change.dimensions.width,
+          height: change.dimensions.height,
+        };
+      }
     } else if (change.type === 'remove') {
       next = next.filter((n) => n.id !== change.id);
     } else if (change.type === 'select') {
