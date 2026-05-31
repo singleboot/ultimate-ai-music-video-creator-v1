@@ -147,6 +147,9 @@ const useWorkflowStore = create(
         savedWorkflows: state.savedWorkflows,
         workflowName: state.workflowName,
         projectPath: state.projectPath,
+        nodes: state.nodes,
+        edges: state.edges,
+        selectedNodeId: state.selectedNodeId,
       }),
     }
   )
