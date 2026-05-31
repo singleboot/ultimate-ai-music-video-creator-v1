@@ -1,12 +1,29 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaSave, FaCog } from 'react-icons/fa';
+import { FaTimes, FaSave, FaCog, FaRobot, FaImage, FaVideo } from 'react-icons/fa';
 import { getSettings, saveSettings } from '../../lib/projectStore';
 
-const API_MODES = [
-  { id: 'local', label: 'Local ComfyUI', desc: 'Run on your local ComfyUI instance' },
-  { id: 'comfyui_cloud', label: 'ComfyUI Cloud', desc: 'Use ComfyUI Cloud service' },
-  { id: 'fal', label: 'Fal.ai', desc: 'Use Fal.ai API for generation' },
+const LLM_PROVIDERS = [
+  { id: 'local', label: 'Local (Gemma)', desc: 'Use local Gemma via ComfyUI' },
+  { id: 'openai', label: 'OpenAI', desc: 'GPT-4o, GPT-4o-mini' },
+  { id: 'anthropic', label: 'Anthropic', desc: 'Claude 3.5 Sonnet, Claude 3 Opus' },
+  { id: 'google', label: 'Google Gemini', desc: 'Gemini Pro, Gemini Ultra' },
+  { id: 'nvidia', label: 'NVIDIA NIM', desc: 'NVIDIA inference endpoints' },
+  { id: 'openapi', label: 'OpenAPI / Custom', desc: 'Any OpenAI-compatible API (vLLM, Ollama, LM Studio)' },
+];
+
+const IMAGE_PROVIDERS = [
+  { id: 'local', label: 'Local ComfyUI', desc: 'Use local ComfyUI workflows' },
+  { id: 'openai', label: 'OpenAI DALL-E', desc: 'DALL-E 3 image generation' },
+  { id: 'stability', label: 'Stability AI', desc: 'Stable Diffusion 3, SDXL' },
+  { id: 'fal', label: 'FAL.ai', desc: 'Fal.ai image models' },
+];
+
+const VIDEO_PROVIDERS = [
+  { id: 'local', label: 'Local ComfyUI', desc: 'Use local LTX 2.3 workflows' },
+  { id: 'runway', label: 'Runway', desc: 'Gen-3 Alpha video generation' },
+  { id: 'luma', label: 'Luma AI', desc: 'Dream Machine video generation' },
+  { id: 'fal', label: 'FAL.ai', desc: 'Fal.ai video models' },
 ];
 
 export default function SettingsPanel({ open, onClose }) {
@@ -32,19 +49,13 @@ export default function SettingsPanel({ open, onClose }) {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
+          <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto glass-strong rounded-2xl p-8 border border-[rgba(176,38,255,0.3)]"
-          >
+            className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto glass-strong rounded-2xl p-8 border border-[rgba(176,38,255,0.3)]">
+
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <FaCog className="text-[#b026ff] text-xl" />
@@ -55,133 +66,121 @@ export default function SettingsPanel({ open, onClose }) {
               </button>
             </div>
 
-            {/* API Mode Selection */}
+            {/* ComfyUI Connection */}
             <div className="mb-8">
-              <label className="block text-sm font-medium text-[#b9b4d0] mb-4 tracking-wide uppercase">AI Engine</label>
-              <div className="grid gap-3">
-                {API_MODES.map(mode => (
-                  <button
-                    key={mode.id}
-                    onClick={() => update('mode', mode.id)}
-                    className={`p-4 rounded-xl text-left transition-all duration-300 ${
-                      settings.mode === mode.id
-                        ? 'bg-[rgba(176,38,255,0.15)] border-2 border-[#b026ff]'
-                        : 'glass border border-[rgba(176,38,255,0.15)] hover:border-[rgba(176,38,255,0.4)]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        settings.mode === mode.id ? 'border-[#b026ff]' : 'border-[#b9b4d0]'
-                      }`}>
-                        {settings.mode === mode.id && (
-                          <div className="w-2 h-2 rounded-full bg-[#b026ff]" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-white text-sm font-semibold">{mode.label}</p>
-                        <p className="text-[#b9b4d0] text-xs">{mode.desc}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+              <label className="block text-sm font-medium text-[#b9b4d0] mb-4 tracking-wide uppercase">ComfyUI Connection</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-[#b9b4d0] mb-1">Host</label>
+                  <input value={settings.comfyuiHost || '127.0.0.1'} onChange={e => update('comfyuiHost', e.target.value)} className="input-neon" placeholder="127.0.0.1" />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#b9b4d0] mb-1">Port</label>
+                  <input type="number" value={settings.comfyuiPort || 8188} onChange={e => update('comfyuiPort', Number(e.target.value))} className="input-neon" placeholder="8188" />
+                </div>
               </div>
             </div>
 
-            {/* Mode-specific settings */}
-            {settings.mode === 'local' && (
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                <div>
-                  <label className="block text-sm font-medium text-[#b9b4d0] mb-2">ComfyUI Host</label>
-                  <input
-                    value={settings.comfyuiHost}
-                    onChange={e => update('comfyuiHost', e.target.value)}
-                    className="input-neon"
-                    placeholder="127.0.0.1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#b9b4d0] mb-2">ComfyUI Port</label>
-                  <input
-                    type="number"
-                    value={settings.comfyuiPort}
-                    onChange={e => update('comfyuiPort', Number(e.target.value))}
-                    className="input-neon"
-                    placeholder="8188"
-                  />
-                </div>
-              </div>
-            )}
-
-            {settings.mode === 'comfyui_cloud' && (
-              <div className="space-y-4 mb-8">
-                <div>
-                  <label className="block text-sm font-medium text-[#b9b4d0] mb-2">API URL</label>
-                  <input
-                    value={settings.comfyuiCloudUrl}
-                    onChange={e => update('comfyuiCloudUrl', e.target.value)}
-                    className="input-neon"
-                    placeholder="https://api.comfyui.cloud"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#b9b4d0] mb-2">API Key</label>
-                  <input
-                    type="password"
-                    value={settings.comfyuiCloudKey}
-                    onChange={e => update('comfyuiCloudKey', e.target.value)}
-                    className="input-neon"
-                    placeholder="Enter your ComfyUI Cloud API key"
-                  />
-                </div>
-              </div>
-            )}
-
-            {settings.mode === 'fal' && (
-              <div className="space-y-4 mb-8">
-                <div>
-                  <label className="block text-sm font-medium text-[#b9b4d0] mb-2">Fal.ai API Key</label>
-                  <input
-                    type="password"
-                    value={settings.falApiKey}
-                    onChange={e => update('falApiKey', e.target.value)}
-                    className="input-neon"
-                    placeholder="Enter your Fal.ai API key"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#b9b4d0] mb-2">Model Endpoint</label>
-                  <input
-                    value={settings.falModelEndpoint}
-                    onChange={e => update('falModelEndpoint', e.target.value)}
-                    className="input-neon"
-                    placeholder="fal-ai/stable-diffusion-v3"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Default Parameters */}
+            {/* LLM Provider */}
             <div className="mb-8">
-              <label className="block text-sm font-medium text-[#b9b4d0] mb-4 tracking-wide uppercase">Default Parameters</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {[
-                  { key: 'defaultWidth', label: 'Width' },
-                  { key: 'defaultHeight', label: 'Height' },
-                  { key: 'defaultFps', label: 'FPS' },
-                  { key: 'defaultSteps', label: 'Steps' },
-                  { key: 'defaultCfg', label: 'CFG Scale' },
-                ].map(field => (
-                  <div key={field.key}>
-                    <label className="block text-xs text-[#b9b4d0] mb-1">{field.label}</label>
-                    <input
-                      type="number"
-                      value={settings[field.key]}
-                      onChange={e => update(field.key, Number(e.target.value))}
-                      className="input-neon text-sm"
-                    />
-                  </div>
+              <label className="flex items-center gap-2 text-sm font-medium text-[#b9b4d0] mb-4 tracking-wide uppercase">
+                <FaRobot size={14} /> LLM (Chat & Lyrics & Thumbnail)
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                {LLM_PROVIDERS.map(p => (
+                  <button key={p.id} onClick={() => update('llmProvider', p.id)}
+                    className={`p-3 rounded-xl text-left transition-all text-xs ${
+                      settings.llmProvider === p.id
+                        ? 'bg-[rgba(176,38,255,0.15)] border border-[#b026ff] text-white'
+                        : 'glass border border-[rgba(176,38,255,0.15)] text-[#b9b4d0] hover:border-[rgba(176,38,255,0.4)]'
+                    }`}>
+                    <p className="font-semibold">{p.label}</p>
+                    <p className="opacity-60 mt-0.5">{p.desc}</p>
+                  </button>
                 ))}
               </div>
+              {settings.llmProvider !== 'local' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">API Key</label>
+                    <input type="password" value={settings.llmApiKey || ''} onChange={e => update('llmApiKey', e.target.value)} className="input-neon" placeholder="Enter API key" />
+                  </div>
+                  {settings.llmProvider === 'openapi' && (
+                    <div>
+                      <label className="block text-xs text-[#b9b4d0] mb-1">Base URL</label>
+                      <input value={settings.llmBaseUrl || ''} onChange={e => update('llmBaseUrl', e.target.value)} className="input-neon" placeholder="http://localhost:11434/v1" />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Model</label>
+                    <input value={settings.llmModel || ''} onChange={e => update('llmModel', e.target.value)} className="input-neon" placeholder={settings.llmProvider === 'openai' ? 'gpt-4o-mini' : settings.llmProvider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : 'model-name'} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Image Provider */}
+            <div className="mb-8">
+              <label className="flex items-center gap-2 text-sm font-medium text-[#b9b4d0] mb-4 tracking-wide uppercase">
+                <FaImage size={14} /> Image Generation (Thumbnails)
+              </label>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {IMAGE_PROVIDERS.map(p => (
+                  <button key={p.id} onClick={() => update('imageProvider', p.id)}
+                    className={`p-3 rounded-xl text-left transition-all text-xs ${
+                      settings.imageProvider === p.id
+                        ? 'bg-[rgba(176,38,255,0.15)] border border-[#b026ff] text-white'
+                        : 'glass border border-[rgba(176,38,255,0.15)] text-[#b9b4d0] hover:border-[rgba(176,38,255,0.4)]'
+                    }`}>
+                    <p className="font-semibold">{p.label}</p>
+                    <p className="opacity-60 mt-0.5">{p.desc}</p>
+                  </button>
+                ))}
+              </div>
+              {settings.imageProvider !== 'local' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">API Key</label>
+                    <input type="password" value={settings.imageApiKey || ''} onChange={e => update('imageApiKey', e.target.value)} className="input-neon" placeholder="Enter API key" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Model</label>
+                    <input value={settings.imageModel || ''} onChange={e => update('imageModel', e.target.value)} className="input-neon" placeholder={settings.imageProvider === 'openai' ? 'dall-e-3' : 'model-name'} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Video Provider */}
+            <div className="mb-8">
+              <label className="flex items-center gap-2 text-sm font-medium text-[#b9b4d0] mb-4 tracking-wide uppercase">
+                <FaVideo size={14} /> Video Generation
+              </label>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {VIDEO_PROVIDERS.map(p => (
+                  <button key={p.id} onClick={() => update('videoProvider', p.id)}
+                    className={`p-3 rounded-xl text-left transition-all text-xs ${
+                      settings.videoProvider === p.id
+                        ? 'bg-[rgba(176,38,255,0.15)] border border-[#b026ff] text-white'
+                        : 'glass border border-[rgba(176,38,255,0.15)] text-[#b9b4d0] hover:border-[rgba(176,38,255,0.4)]'
+                    }`}>
+                    <p className="font-semibold">{p.label}</p>
+                    <p className="opacity-60 mt-0.5">{p.desc}</p>
+                  </button>
+                ))}
+              </div>
+              {settings.videoProvider !== 'local' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">API Key</label>
+                    <input type="password" value={settings.videoApiKey || ''} onChange={e => update('videoApiKey', e.target.value)} className="input-neon" placeholder="Enter API key" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Model</label>
+                    <input value={settings.videoModel || ''} onChange={e => update('videoModel', e.target.value)} className="input-neon" placeholder={settings.videoProvider === 'runway' ? 'gen-3' : 'model-name'} />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Actions */}
@@ -189,11 +188,8 @@ export default function SettingsPanel({ open, onClose }) {
               <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm text-[#b9b4d0] hover:text-white border border-[rgba(176,38,255,0.3)] hover:border-[#b026ff] transition-all">
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#b026ff] to-[#7c3aed] hover:shadow-[0_0_20px_rgba(176,38,255,0.5)] transition-all disabled:opacity-50 flex items-center gap-2"
-              >
+              <button onClick={handleSave} disabled={saving}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#b026ff] to-[#7c3aed] hover:shadow-[0_0_20px_rgba(176,38,255,0.5)] transition-all disabled:opacity-50 flex items-center gap-2">
                 <FaSave size={14} />
                 {saving ? 'Saving...' : 'Save Settings'}
               </button>

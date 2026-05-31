@@ -3,6 +3,7 @@ const CURRENT_KEY = 'mv_project_current';
 const SETTINGS_KEY = 'mv_settings';
 
 const DEFAULT_SETTINGS = {
+  // ComfyUI Connection
   mode: 'local',
   comfyuiHost: '127.0.0.1',
   comfyuiPort: 8188,
@@ -10,6 +11,20 @@ const DEFAULT_SETTINGS = {
   comfyuiCloudKey: '',
   falApiKey: '',
   falModelEndpoint: '',
+  // LLM Provider
+  llmProvider: 'local',
+  llmApiKey: '',
+  llmBaseUrl: '',
+  llmModel: '',
+  // Image Provider
+  imageProvider: 'local',
+  imageApiKey: '',
+  imageModel: '',
+  // Video Provider
+  videoProvider: 'local',
+  videoApiKey: '',
+  videoModel: '',
+  // Defaults
   defaultWidth: 1920,
   defaultHeight: 1080,
   defaultFps: 24,

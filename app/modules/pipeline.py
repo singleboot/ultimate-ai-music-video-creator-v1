@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
@@ -97,11 +98,9 @@ class PipelineRunner:
         workflow = self.editor.get_workflow("ace_audio_cover")
         lyrics = params.get("lyrics", "")
 
-        mode = params.get("lyrics_mode", "manual")
-        if mode == "ai" and not lyrics:
+        if not lyrics.strip():
             genre = params.get("genre", "pop")
-            lyrics = f"[Instrumental]\nAI-generated {genre} composition\n"
-            logger.info("Using AI lyrics placeholder for genre: %s", genre)
+            lyrics = f"[{genre} composition]\n"
 
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         silent_path = os.path.join(project_root, "input", "silence_2s.wav")
@@ -285,21 +284,32 @@ class PipelineRunner:
         return prompt_id
 
     def _build_tts_workflow(self, params: dict) -> dict:
-        """Build a minimal TTS workflow as a fallback when no saved workflow exists.
+        """Build a minimal TTS workflow using the loaded tts.json workflow.
+
+        Injects the TTS text into the TextGenerate node's prompt.
 
         Args:
             params: Dict with text and optional voice.
 
         Returns:
-            A minimal ComfyUI API-format workflow dict.
-
-        Raises:
-            ValueError: Always raised — TTS workflow not available.
+            A ComfyUI API-format workflow dict.
         """
-        raise ValueError(
-            "TTS workflow not available. Ensure a 'tts' workflow JSON exists "
-            "in the workflows directory."
+        workflow = self.editor.get_workflow("tts")
+        text = params.get("text", "")
+        voice = params.get("voice", "default")
+        prompt_text = (
+            f"<bos><start_of_turn>user\n"
+            f"Read the following text aloud as a {voice} voice narration:\n\n{text}\n"
+            f"<end_of_turn>\n<start_of_turn>model\n"
         )
+        text_node_id = next(
+            (nid for nid, node in workflow.items()
+             if node.get("class_type") == "TextGenerate"),
+            None
+        )
+        if text_node_id:
+            self.editor.set_node_input(workflow, text_node_id, "prompt", prompt_text)
+        return workflow
 
     async def run_prompt_creator(self, params: dict) -> str:
         """Run the prompt creator workflow to generate visual concept prompts.
@@ -669,6 +679,32 @@ class PipelineRunner:
             logger.error("Step 3 (video) failed: %s", e)
             result["status"] = f"video_step_failed: {e}"
             return result
+
+        # Step 4: Assembly — merge audio into video
+        try:
+            if final_video and master_audio and os.path.exists(master_audio):
+                stem, ext = os.path.splitext(final_video)
+                assembled_path = f"{stem}_assembled{ext}"
+                if shutil.which("ffmpeg"):
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-i", final_video,
+                        "-i", master_audio,
+                        "-c:v", "copy",
+                        "-c:a", "aac",
+                        "-shortest",
+                        assembled_path,
+                    ]
+                    subprocess.run(cmd, capture_output=True, timeout=120)
+                    if os.path.exists(assembled_path):
+                        result["final_video"] = assembled_path
+                        logger.info("Assembled video with audio: %s", assembled_path)
+                else:
+                    logger.warning("ffmpeg not found — skipping audio merge")
+            else:
+                logger.info("No master audio available for assembly step")
+        except Exception as e:
+            logger.warning("Assembly step failed (non-fatal): %s", e)
 
         result["status"] = "completed"
         return result

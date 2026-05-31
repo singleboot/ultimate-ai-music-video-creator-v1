@@ -1,4 +1,5 @@
-import { FaMagic, FaMusic, FaRandom, FaStop } from 'react-icons/fa';
+import { useState } from 'react';
+import { FaMagic, FaMusic, FaRandom, FaStop, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import GlassCard from '../shared/GlassCard';
 import GlowButton from '../shared/GlowButton';
 import NeonInput from '../shared/NeonInput';
@@ -7,6 +8,7 @@ import AudioPlayer from '../shared/AudioPlayer';
 
 const STRUCTURES = ["Verse-Chorus", "Verse-Chorus-Bridge", "Intro-Verse-Chorus-Verse-Chorus-Bridge-Outro", "ABAB", "Through-composed", "Free-form"];
 const KEY_SCALES = ["C Major", "G Major", "D Major", "A Major", "E Major", "B Major", "F Major", "Bb Major", "Eb Major", "Ab Major", "Db Major", "Gb Major", "A Minor", "E Minor", "B Minor", "F# Minor", "C# Minor", "G# Minor", "D Minor", "G Minor", "C Minor", "F Minor", "Bb Minor", "Eb Minor"];
+const TIME_SIGNATURES = ["3", "4", "5", "6", "7"];
 
 function Spinner({ className = "" }) {
   return <div className={`w-8 h-8 border-2 border-[#b026ff] border-t-transparent rounded-full animate-spin ${className}`} />;
@@ -17,12 +19,18 @@ export default function AudioTab({
   lyrics, setLyrics, theme, setTheme, structure, setStructure,
   bpm, setBpm, keyScale, setKeyScale, duration, setDuration,
   generatedLyrics, lyricsGenerating, result, loading,
+  timeSignature, setTimeSignature, cfgScale, setCfgScale,
+  temperature, setTemperature, topP, setTopP, topK, setTopK,
+  steps, setSteps, samplingShift, setSamplingShift,
   onGenerateLyrics, onGenerate, onCancel,
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="space-y-6">
-      <h2 className="font-bebas text-3xl tracking-wider text-white neon-text">Text to Audio</h2>
+      <h2 className="font-bebas text-3xl tracking-wider text-white neon-text">Text to Audio (ACE-Step 1.5)</h2>
 
+      {/* Mode Selection */}
       <div className="flex gap-3">
         {["manual", "ai", "instrumental"].map((m) => (
           <button key={m} onClick={() => setMode(m)}
@@ -34,13 +42,13 @@ export default function AudioTab({
         ))}
       </div>
 
-      <NeonInput label="Duration (seconds)" type="number" min={1} max={600} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
-
       <div className="grid lg:grid-cols-2 gap-8">
+        {/* Controls */}
         <GlassCard glow="purple">
           <div className="space-y-4">
             <NeonInput label="Genre / Style" value={genre} onChange={(e) => setGenre(e.target.value)} placeholder="e.g. Cinematic orchestral pop" />
             <LanguageSelector value={language} onChange={(e) => setLanguage(e.target.value)} />
+            <NeonInput label="Duration (seconds)" type="number" min={1} max={600} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
 
             {mode === "manual" && (
               <>
@@ -72,6 +80,7 @@ export default function AudioTab({
               </>
             )}
 
+            {/* Basic Settings */}
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[rgba(176,38,255,0.15)]">
               <div>
                 <label className="block text-sm font-medium text-[#b9b4d0] mb-2 tracking-wide uppercase">BPM</label>
@@ -87,9 +96,60 @@ export default function AudioTab({
                 </select>
               </div>
             </div>
+
+            {/* Advanced Settings Toggle */}
+            <button onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm text-[#b9b4d0] hover:text-white transition-all">
+              {showAdvanced ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
+              Advanced ACE-Step Settings
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-4 p-4 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(176,38,255,0.1)]">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Time Signature</label>
+                    <select value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} className="input-neon text-sm">
+                      {TIME_SIGNATURES.map((t) => <option key={t} value={t}>{t}/4</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">CFG Scale (0.5-5)</label>
+                    <input type="number" step="0.1" min="0.5" max="5" value={cfgScale} onChange={(e) => setCfgScale(Number(e.target.value))} className="input-neon text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Temperature (0-1.5)</label>
+                    <input type="number" step="0.05" min="0" max="1.5" value={temperature} onChange={(e) => setTemperature(Number(e.target.value))} className="input-neon text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Steps (10-50)</label>
+                    <input type="number" min="10" max="50" value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="input-neon text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Top P (0-1)</label>
+                    <input type="number" step="0.05" min="0" max="1" value={topP} onChange={(e) => setTopP(Number(e.target.value))} className="input-neon text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Top K (0-100)</label>
+                    <input type="number" min="0" max="100" value={topK} onChange={(e) => setTopK(Number(e.target.value))} className="input-neon text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#b9b4d0] mb-1">Sampling Shift (1-10)</label>
+                    <input type="number" min="1" max="10" value={samplingShift} onChange={(e) => setSamplingShift(Number(e.target.value))} className="input-neon text-sm" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </GlassCard>
 
+        {/* Results */}
         <div className="space-y-6">
           <GlassCard glow="pink" className="flex flex-col items-center justify-center min-h-[200px]">
             {loading ? (
@@ -110,6 +170,7 @@ export default function AudioTab({
             )}
           </GlassCard>
 
+          {/* Lyrics Box (AI mode) */}
           {mode === "ai" && (
             <GlassCard glow="purple" className="min-h-[180px]">
               {lyricsGenerating ? (

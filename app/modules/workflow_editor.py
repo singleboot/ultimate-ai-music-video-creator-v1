@@ -14,6 +14,7 @@ WORKFLOW_NAMES = {
     "prompt_creator": "prompt_creator.json",
     "i2v": "i2v.json",
     "t2v": "t2v.json",
+    "tts": "tts.json",
 }
 
 
@@ -153,7 +154,45 @@ class WorkflowEditor:
         for key, value in inject.items():
             self.set_node_input(workflow, "31", key, value)
 
+        self._inject_ace_advanced_params(workflow, params)
+
         return workflow
+
+    def _inject_ace_advanced_params(self, workflow: dict, params: dict) -> None:
+        """Inject advanced ACE-Step generation parameters into workflow nodes.
+
+        Sets params on the task encode node (31), the scheduler (21),
+        the sampling shift node (23), and the sampler select node (20).
+
+        Args:
+            workflow: The ACE workflow dict.
+            params: Dict with optional keys:
+                - time_signature (int): from frontend timeSignature
+                - cfg (float): from frontend cfgScale
+                - temperature (float)
+                - top_p (float)
+                - top_k (int)
+                - steps (int): scheduler steps
+                - sampling_shift (int): ModelSamplingAuraFlow shift
+                - sampler (str): sampler_name for KSamplerSelect
+        """
+        ace_node = "31"
+        if "time_signature" in params:
+            self.set_node_input(workflow, ace_node, "timesignature", params["time_signature"])
+        if "cfg" in params:
+            self.set_node_input(workflow, ace_node, "cfg_scale", params["cfg"])
+        if "temperature" in params:
+            self.set_node_input(workflow, ace_node, "temperature", params["temperature"])
+        if "top_p" in params:
+            self.set_node_input(workflow, ace_node, "top_p", params["top_p"])
+        if "top_k" in params:
+            self.set_node_input(workflow, ace_node, "top_k", params["top_k"])
+        if "steps" in params:
+            self.set_node_input(workflow, "21", "steps", params["steps"])
+        if "sampling_shift" in params:
+            self.set_node_input(workflow, "23", "shift", params["sampling_shift"])
+        if "sampler" in params:
+            self.set_node_input(workflow, "20", "sampler_name", params["sampler"])
 
     def inject_ace_text2music_params(self, workflow: dict, params: dict) -> dict:
         """Inject parameters into the ACE workflow for text-to-music mode.
@@ -171,6 +210,14 @@ class WorkflowEditor:
                 - bpm (int, optional)
                 - duration (int, default 180)
                 - seed (int, optional)
+                - time_signature (int, optional)
+                - cfg (float, optional)
+                - temperature (float, optional)
+                - top_p (float, optional)
+                - top_k (int, optional)
+                - steps (int, optional)
+                - sampling_shift (int, optional)
+                - sampler (str, optional)
 
         Returns:
             The modified workflow dict.
@@ -187,6 +234,8 @@ class WorkflowEditor:
             self.set_node_input(workflow, "31", "bpm", params["bpm"])
         if "seed" in params:
             self.set_node_input(workflow, "31", "seed", params["seed"])
+
+        self._inject_ace_advanced_params(workflow, params)
 
         # Keep source_latents connected (required by Cover Guider).
         # The silent audio uploaded by pipeline.py provides a zero latent.
@@ -234,10 +283,65 @@ class WorkflowEditor:
 
         return workflow
 
+    def _inject_ltx_advanced_params(self, workflow: dict, params: dict) -> None:
+        """Inject advanced LTX 2.3 generation parameters.
+
+        Sets cfg on CFGGuider nodes, sampler_name on KSamplerSelect nodes,
+        crf and format on VHS_VideoCombine, tail/pre frames on the SRT loader.
+
+        Args:
+            workflow: The LTX workflow dict.
+            params: Dict with optional keys:
+                - cfg (float)
+                - sampler (str)
+                - crf (int)
+                - video_format (str)
+                - tail_loss_frames (int)
+                - pre_frames (int)
+        """
+        cfg_nodes = ["219:188", "218:185"]
+        sampler_nodes = ["219:187", "218:186"]
+        video_combine = "273"
+        srt_loader = "218:287"
+
+        if "cfg" in params:
+            for nid in cfg_nodes:
+                self.set_node_input(workflow, nid, "cfg", params["cfg"])
+        if "sampler" in params:
+            for nid in sampler_nodes:
+                self.set_node_input(workflow, nid, "sampler_name", params["sampler"])
+        if "crf" in params:
+            self.set_node_input(workflow, video_combine, "crf", params["crf"])
+        if "video_format" in params:
+            self.set_node_input(workflow, video_combine, "format", params["video_format"])
+        if "tail_loss_frames" in params:
+            self.set_node_input(workflow, srt_loader, "tail_loss_frames", params["tail_loss_frames"])
+        if "pre_frames" in params:
+            self.set_node_input(workflow, srt_loader, "pre_frames", params["pre_frames"])
+
+    def _inject_loras_from_array(self, workflow: dict, params: dict) -> None:
+        """Inject LoRA parameters from an array format into the flat lora_1..lora_20 format.
+
+        Args:
+            workflow: The LTX workflow dict.
+            params: Dict with optional 'loras' key containing list of {file, strength} objects.
+        """
+        loras = params.get("loras", [])
+        if not isinstance(loras, list) or not loras:
+            return
+        lora_node = workflow.get("842")
+        if not lora_node:
+            return
+        for i, lora in enumerate(loras[:20], start=1):
+            if lora.get("file"):
+                self.set_node_input(workflow, "842", f"lora_{i}", lora["file"])
+                self.set_node_input(workflow, "842", f"strength_{i}", lora.get("strength", 1.0))
+
     def inject_i2v_params(self, workflow: dict, params: dict) -> dict:
         """Inject parameters into the Image-to-Video workflow.
 
-        Sets fps, width, height, seed, model, and LoRA parameters.
+        Sets fps, width, height, seed, model, LoRA parameters, and advanced
+        LTX 2.3 params.
 
         Args:
             workflow: The i2v workflow dict.
@@ -250,6 +354,13 @@ class WorkflowEditor:
                 - lora_1 .. lora_20 (str, optional)
                 - strength_1 .. strength_20 (float, optional)
                 - audio_path (str, optional — uploaded filename for audio)
+                - cfg (float, optional)
+                - sampler (str, optional)
+                - crf (int, optional)
+                - video_format (str, optional)
+                - tail_loss_frames (int, optional)
+                - pre_frames (int, optional)
+                - loras (list[dict], optional) — array of {file, strength}
 
         Returns:
             The modified workflow dict.
@@ -291,6 +402,9 @@ class WorkflowEditor:
                     self.set_node_input(
                         workflow, "842", strength_key, params[strength_key]
                     )
+
+        self._inject_loras_from_array(workflow, params)
+        self._inject_ltx_advanced_params(workflow, params)
 
         return workflow
 

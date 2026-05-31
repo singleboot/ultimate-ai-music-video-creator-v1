@@ -147,10 +147,6 @@ PROJECT_DIRS = ["music", "images", "videos", "lyrics"]
 # ---------------------------------------------------------------------------
 
 def _scan_output_dir(output_dir: str, since: float, suffixes: tuple = None) -> list[str]:
-    """Scan output_dir for files modified after `since`, optionally filtered by suffix.
-
-    Returns URLs relative to the /output/ mount point.
-    """
     urls = []
     if not os.path.isdir(output_dir):
         return urls
@@ -164,10 +160,17 @@ def _scan_output_dir(output_dir: str, since: float, suffixes: tuple = None) -> l
                 mtime = os.path.getmtime(fpath)
                 if mtime >= since:
                     rel = os.path.relpath(fpath, output_dir).replace("\\", "/")
-                    entries.append((mtime, f"/output/{rel}"))
+                    size = os.path.getsize(fpath)
+                    priority = 0
+                    name_lower = fname.lower()
+                    if "master" in name_lower:
+                        priority = 2
+                    elif "other" in name_lower:
+                        priority = 1
+                    entries.append((mtime, f"/output/{rel}", priority, size))
             except OSError:
                 continue
-    entries.sort(key=lambda x: x[0], reverse=True)
+    entries.sort(key=lambda x: (-x[2], -x[3]))
     urls = [e[1] for e in entries]
     return urls
 
@@ -219,14 +222,99 @@ async def generate_lyrics(req: LyricsGenerateRequest) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _suggest_actions(message: str, history: list[dict]) -> list[str]:
+    """Suggest UI action buttons based on conversation keywords."""
+    text = (message + " " + " ".join(m.get("content", "") for m in history[-6:])).lower()
+    actions = []
+    if any(w in text for w in ["new video", "music video", "create video", "start"]):
+        actions.append("New Video")
+    if any(w in text for w in ["cover", "remix", "rework", "cover song"]):
+        actions.append("Cover Song")
+    if any(w in text for w in ["generate lyrics", "write lyrics", "create lyrics", "theme", "story", "song about"]):
+        actions.append("Generate Lyrics")
+    if any(w in text for w in ["generate music", "make music", "create audio", "produce track", "make a song"]):
+        actions.append("Generate Music")
+    if any(w in text for w in ["edit lyrics", "change lyrics", "modify lyrics"]):
+        actions.append("Edit Lyrics")
+    if any(w in text for w in ["generate concepts", "create concepts", "visual prompts", "scene ideas"]):
+        actions.append("Generate Concepts")
+    if any(w in text for w in ["generate video", "make video", "create video", "render", "animate"]):
+        actions.append("Generate Video")
+    if any(w in text for w in ["timeline", "publish", "upload", "youtube", "export"]):
+        actions.append("Open Timeline")
+    return actions[:3]
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest) -> dict:
-    """Send a chat message and get an AI response."""
+    """Send a chat message and get an AI response with suggested actions."""
     try:
-        response = await pipeline_runner.run_chat(req.model_dump())
-        return {"status": "ok", "response": response}
+        params = req.model_dump()
+        response = await pipeline_runner.run_chat(params)
+        actions = _suggest_actions(params.get("message", ""), params.get("history", []))
+        return {"status": "ok", "response": response, "actions": actions}
     except Exception as e:
         logger.error("Chat failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SubtitlesRequest(BaseModel):
+    """Request to generate subtitles from lyrics."""
+    lyrics: str = ""
+    source: str = "lyrics"  # 'lyrics' or 'audio'
+
+
+class ThumbnailPromptsRequest(BaseModel):
+    """Request to generate thumbnail prompts from video context."""
+    context: str = ""
+    count: int = 3
+
+
+@app.post("/api/generate/subtitles")
+async def generate_subtitles(req: SubtitlesRequest) -> dict:
+    """Generate SRT subtitle content from lyrics with estimated timing."""
+    try:
+        lines = [l.strip() for l in req.lyrics.split("\n") if l.strip()]
+        srt_parts = []
+        idx = 1
+        current_time = 0.0
+        for line in lines:
+            words = len(line.split())
+            if words <= 2:
+                duration = 2.0
+            elif words <= 6:
+                duration = 3.0
+            elif words <= 12:
+                duration = 4.5
+            else:
+                duration = 6.0
+            start_h = int(current_time // 3600)
+            start_m = int((current_time % 3600) // 60)
+            start_s = int(current_time % 60)
+            start_ms = int((current_time - int(current_time)) * 1000)
+            end_time = current_time + duration
+            end_h = int(end_time // 3600)
+            end_m = int((end_time % 3600) // 60)
+            end_s = int(end_time % 60)
+            end_ms = int((end_time - int(end_time)) * 1000)
+            srt_parts.append(f"{idx}\n{start_h:02d}:{start_m:02d}:{start_s:02d},{start_ms:03d} --> {end_h:02d}:{end_m:02d}:{end_s:02d},{end_ms:03d}\n{line}\n")
+            idx += 1
+            current_time = end_time
+        srt_content = "\n".join(srt_parts)
+        return {"status": "ok", "srt": srt_content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generate/thumbnail-prompts")
+async def generate_thumbnail_prompts(req: ThumbnailPromptsRequest) -> dict:
+    """Generate viral thumbnail prompt ideas using the LLM."""
+    try:
+        params = {"message": f"Generate {req.count} viral YouTube thumbnail prompt ideas for a music video about: {req.context}. Return each as a concise image generation prompt.", "history": []}
+        response = await pipeline_runner.run_chat(params)
+        prompts = [line.strip("- ").strip() for line in response.split("\n") if line.strip() and not line.startswith("I'll")]
+        return {"status": "ok", "prompts": prompts[:req.count]}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 

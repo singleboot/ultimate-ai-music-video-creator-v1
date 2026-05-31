@@ -2,25 +2,27 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 import TabBar from '../components/workspace/TabBar';
-import ChatTab from '../components/workspace/ChatTab';
-import AudioTab from '../components/workspace/AudioTab';
+import ChatPopup from '../components/shared/ChatPopup';
+import LyricsTab from '../components/workspace/LyricsTab';
+import MusicTab from '../components/workspace/MusicTab';
 import CoverTab from '../components/workspace/CoverTab';
 import TTSTab from '../components/workspace/TTSTab';
 import ConceptsTab from '../components/workspace/ConceptsTab';
 import VideoTab from '../components/workspace/VideoTab';
 import PipelineTab from '../components/workspace/PipelineTab';
+import TimelineTab from '../components/workspace/TimelineTab';
 import SettingsPanel from '../components/shared/SettingsPanel';
 import { getCurrentProject } from '../lib/projectStore';
 import {
   generateText2Audio, generateAudioCover, generateTTS,
-  generatePrompts, generateVideo, runPipeline, generateLyrics,
-  cancelJob,
+  generatePrompts, generateVideo, generateLyrics,
+  cancelJob, getJobStatus,
 } from '../lib/api';
 
 export default function Workspace() {
   const router = useRouter();
   const [project, setProject] = useState(null);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activeTab, setActiveTab] = useState('lyrics');
   const [showSettings, setShowSettings] = useState(false);
 
   // Loading states
@@ -47,7 +49,7 @@ export default function Workspace() {
 
   // Text2Audio state
   const [t2aMode, setT2aMode] = useState("manual");
-  const [t2aGenre, setT2aGenre] = useState("Pop");
+  const [t2aGenre, setT2aGenre] = useState(["Pop"]);
   const [t2aLanguage, setT2aLanguage] = useState("en");
   const [t2aLyrics, setT2aLyrics] = useState("");
   const [t2aTheme, setT2aTheme] = useState("");
@@ -58,6 +60,13 @@ export default function Workspace() {
   const [t2aGeneratedLyrics, setT2aGeneratedLyrics] = useState("");
   const [t2aLyricsGenerating, setT2aLyricsGenerating] = useState(false);
   const [t2aResult, setT2aResult] = useState(null);
+  const [t2aTimeSignature, setT2aTimeSignature] = useState("4");
+  const [t2aCfgScale, setT2aCfgScale] = useState(2);
+  const [t2aTemperature, setT2aTemperature] = useState(0.85);
+  const [t2aTopP, setT2aTopP] = useState(0.9);
+  const [t2aTopK, setT2aTopK] = useState(0);
+  const [t2aSteps, setT2aSteps] = useState(30);
+  const [t2aSamplingShift, setT2aSamplingShift] = useState(5);
 
   // Cover state
   const [coverFile, setCoverFile] = useState(null);
@@ -86,9 +95,18 @@ export default function Workspace() {
   const [videoImage, setVideoImage] = useState(null);
   const [videoPrompts, setVideoPrompts] = useState("");
   const [videoFps, setVideoFps] = useState(24);
-  const [videoResolution, setVideoResolution] = useState("1024x576");
+  const [videoResolution, setVideoResolution] = useState("1920x1080");
   const [videoSeed, setVideoSeed] = useState(-1);
   const [videoCamera, setVideoCamera] = useState("Static");
+  const [videoCfg, setVideoCfg] = useState(1);
+  const [videoSampler, setVideoSampler] = useState("euler");
+  const [videoCharMotion, setVideoCharMotion] = useState("");
+  const [videoUseSrtDuration, setVideoUseSrtDuration] = useState(true);
+  const [videoTailFrames, setVideoTailFrames] = useState(25);
+  const [videoPreFrames, setVideoPreFrames] = useState(50);
+  const [videoCrf, setVideoCrf] = useState(19);
+  const [videoFormat, setVideoFormat] = useState("video/h264-mp4");
+  const [videoLoras, setVideoLoras] = useState([{ file: "", strength: 1.0 }]);
   const [videoResults, setVideoResults] = useState([]);
 
   // Pipeline state
@@ -96,13 +114,30 @@ export default function Workspace() {
   const [pipelineBrief, setPipelineBrief] = useState("");
   const [pipelineStep, setPipelineStep] = useState(0);
   const [pipelineStatus, setPipelineStatus] = useState("");
-  const briefRef = useRef("");
 
   useEffect(() => {
     const p = getCurrentProject();
     if (!p) { router.replace('/'); return; }
     setProject(p);
   }, []);
+
+  // === Job Progress Polling ===
+
+  const pollJobStatus = async (promptId, onProgress) => {
+    while (true) {
+      try {
+        const res = await getJobStatus(promptId);
+        const status = res.data;
+        if (status.status === 'completed') return status;
+        if (status.status === 'failed') throw new Error(status.error || 'Job failed');
+        if (onProgress) onProgress(status);
+        await new Promise(r => setTimeout(r, 2000));
+      } catch (e) {
+        if (e.message?.includes('failed')) throw e;
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  };
 
   // === Generation Handlers ===
 
@@ -113,12 +148,13 @@ export default function Workspace() {
     try {
       const res = await generateLyrics({
         theme: t2aTheme, structure: t2aStructure,
-        genre: t2aGenre, language: t2aLanguage, duration: t2aDuration,
+        genre: t2aGenre.join(", "), language: t2aLanguage, duration: t2aDuration,
       });
       if (t2aCancelled.current) return;
       const lyrics = res.data.lyrics;
       setT2aGeneratedLyrics(lyrics);
       setT2aLyrics(lyrics);
+      setPromptLyrics(lyrics);
       toast.success("Lyrics generated!");
     } catch (err) {
       if (t2aCancelled.current) return;
@@ -128,12 +164,14 @@ export default function Workspace() {
 
   const handleGenerateAudio = async () => {
     const params = {
-      genre: t2aGenre, language: t2aLanguage, bpm: t2aBpm,
+      genre: t2aGenre.join(", "), language: t2aLanguage, bpm: t2aBpm,
       key: t2aKey, duration: t2aDuration,
+      time_signature: t2aTimeSignature, cfg: t2aCfgScale,
+      temperature: t2aTemperature, top_p: t2aTopP, top_k: t2aTopK,
+      steps: t2aSteps, sampling_shift: t2aSamplingShift,
+      lyrics: t2aLyrics,
+      mode_type: "manual",
     };
-    if (t2aMode === "manual") params.lyrics = t2aLyrics;
-    else if (t2aMode === "ai") params.lyrics = t2aGeneratedLyrics || t2aLyrics;
-    params.mode_type = t2aMode === "ai" ? "manual" : t2aMode;
     t2aCancelled.current = false;
     setT2aAudioLoading(true);
     try {
@@ -215,6 +253,10 @@ export default function Workspace() {
       const res = await generateVideo({
         mode: videoMode, prompts: videoPrompts, fps: videoFps,
         resolution: videoResolution, seed: videoSeed, camera_motion: videoCamera,
+        cfg: videoCfg, sampler: videoSampler, character_motion: videoCharMotion,
+        use_srt_duration: videoUseSrtDuration, tail_loss_frames: videoTailFrames,
+        pre_frames: videoPreFrames, crf: videoCrf, video_format: videoFormat,
+        loras: videoLoras,
       });
       if (videoCancelled.current) return;
       const id = res.data?.prompt_id;
@@ -227,41 +269,127 @@ export default function Workspace() {
     } finally { setVideoLoading(false); }
   };
 
-  const handleRunPipelineWithBrief = async (theme) => {
-    if (!theme.trim()) { toast.error("Describe your vision in the chat first"); return; }
+  // === Pipeline (Real Progress) ===
+
+  const handleRunPipelineStep = async (stepName, apiCall, setStatus) => {
+    setStatus(`Running ${stepName}...`);
+    const res = await apiCall();
+    const promptId = res.data?.prompt_id;
+    if (promptId) {
+      await pollJobStatus(promptId, (status) => {
+        setStatus(`${stepName}: ${status.status || 'processing'}...`);
+      });
+    }
+    return res.data;
+  };
+
+  // === Chat Action Handler ===
+
+  const t2aResultRef = useRef(null);
+  const videoResultsRef = useRef([]);
+  useEffect(() => { t2aResultRef.current = t2aResult; }, [t2aResult]);
+  useEffect(() => { videoResultsRef.current = videoResults; }, [videoResults]);
+
+  const handleChatAction = async (action, addBotMessage) => {
+    switch (action) {
+      case 'New Video':
+        setActiveTab('lyrics');
+        if (addBotMessage) addBotMessage('Switched to Lyrics tab! Tell me about your song — genre, theme, mood. Then generate lyrics.', { actions: ['Generate Lyrics', 'Generate Music'] });
+        break;
+      case 'Cover Song':
+        setActiveTab('cover');
+        if (addBotMessage) addBotMessage('Switched to Cover tab! Upload your source audio file, set the genre and style, then click Generate Cover.', { actions: [] });
+        break;
+      case 'Generate Lyrics':
+        await handleGenerateLyrics();
+        if (addBotMessage) addBotMessage('Lyrics generated! Switch to the Music tab to generate audio.', { actions: ['Generate Music'] });
+        break;
+      case 'Generate Music':
+        setActiveTab('music');
+        await handleGenerateAudio();
+        if (addBotMessage) {
+          const result = t2aResultRef.current;
+          const audioUrl = result?.audio_url || result?.url;
+          if (audioUrl) addBotMessage('Audio generated!', { media: { type: 'audio', url: audioUrl }, actions: ['Generate Concepts', 'Generate Video'] });
+          else addBotMessage('Audio generated! Check the Audio tab to preview.', { actions: ['Generate Concepts', 'Generate Video'] });
+        }
+        break;
+      case 'Edit Lyrics':
+        setActiveTab('lyrics');
+        if (addBotMessage) addBotMessage('Edit your lyrics in the Lyrics tab, then switch to Music tab to generate audio.', { actions: ['Generate Music'] });
+        break;
+      case 'Generate Concepts':
+        await handleGeneratePrompts();
+        if (addBotMessage) addBotMessage('Visual concepts created! Check the Concepts tab, then generate your video.', { actions: ['Generate Video'] });
+        setActiveTab('concepts');
+        break;
+      case 'Generate Video':
+        await handleGenerateVideo();
+        if (addBotMessage) {
+          const last = videoResultsRef.current[0];
+          const videoUrl = last?.video_url || last?.url;
+          if (videoUrl) addBotMessage('Video generated!', { media: { type: 'video', url: videoUrl }, actions: ['Open Timeline'] });
+          else addBotMessage('Video generated! Check the Video tab to preview.', { actions: ['Open Timeline'] });
+        }
+        setActiveTab('video');
+        break;
+      case 'Open Timeline':
+        setActiveTab('timeline');
+        if (addBotMessage) addBotMessage('Timeline & Publishing tab open. Add YouTube metadata, generate thumbnails, and publish!', { actions: [] });
+        break;
+      default:
+        break;
+    }
+  };
+
+  // === Full Pipeline Handler ===
+
+  const handleRunPipeline = async () => {
+    if (!pipelineBrief.trim()) { toast.error("Enter a vision brief first"); return; }
     setPipelineRunning(true);
-    setPipelineStep(0);
-    setPipelineStatus("Initializing...");
-    setPipelineResult(null);
-    const steps = ["Generating Audio...", "Creating Concepts...", "Rendering Video...", "Assembling Final..."];
-    const params = { theme };
+    setPipelineStep(1);
+    setPipelineStatus("Initializing pipeline...");
     try {
-      for (let i = 0; i < steps.length; i++) {
-        setPipelineStep(i);
-        setPipelineStatus(steps[i]);
-        await new Promise((r) => setTimeout(r, 1500));
-      }
+      setPipelineStatus("Generating audio...");
+      const audioRes = await generateText2Audio({
+        genre: t2aGenre, language: t2aLanguage, bpm: t2aBpm,
+        key: t2aKey, duration: t2aDuration,
+        time_signature: t2aTimeSignature, cfg: t2aCfgScale,
+        temperature: t2aTemperature, top_p: t2aTopP, top_k: t2aTopK,
+        steps: t2aSteps, sampling_shift: t2aSamplingShift,
+        lyrics: pipelineBrief,
+      });
+      const audioId = audioRes.data?.prompt_id;
+      if (audioId) await pollJobStatus(audioId, (s) => setPipelineStatus(`Audio: ${s.status || 'processing'}...`));
+      setPipelineStep(2);
+
+      setPipelineStatus("Creating concepts...");
+      await generatePrompts({
+        lyrics: pipelineBrief, theme_style: t2aGenre,
+        story_concept: pipelineBrief, language: t2aLanguage,
+      });
+      setPipelineStep(3);
+
+      setPipelineStatus("Generating video...");
+      const videoRes = await generateVideo({
+        mode: videoMode, prompts: pipelineBrief, fps: videoFps,
+        resolution: videoResolution, seed: videoSeed, camera_motion: videoCamera,
+        cfg: videoCfg, sampler: videoSampler, character_motion: videoCharMotion,
+        crf: videoCrf, video_format: videoFormat, loras: videoLoras,
+      });
+      const videoId = videoRes.data?.prompt_id;
+      if (videoId) await pollJobStatus(videoId, (s) => setPipelineStatus(`Video: ${s.status || 'processing'}...`));
       setPipelineStep(4);
-      setPipelineStatus("Complete!");
-      const res = await runPipeline(params);
-      setPipelineResult(res.data);
-      toast.success("Your music video is ready!");
-    } catch (e) {
+      setPipelineStatus("Assembling final video...");
+      setPipelineResult(videoRes.data);
+      toast.success("Music video created!");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || "Pipeline step failed");
+    } finally {
       setPipelineRunning(false);
-      setPipelineStatus("Failed");
-    } finally { setPipelineRunning(false); }
-  };
-
-  const handleChatGenerate = (messages) => {
-    const summary = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
-    briefRef.current = summary;
-    setPipelineBrief(summary);
-    setActiveTab('pipeline');
-    setTimeout(() => handleRunPipelineWithBrief(briefRef.current), 500);
-  };
-
-  const handleRunPipeline = () => {
-    handleRunPipelineWithBrief(pipelineBrief);
+      setPipelineStep(0);
+      setPipelineStatus("");
+    }
   };
 
   // === Cancel Handlers ===
@@ -276,25 +404,37 @@ export default function Workspace() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'chat':
-        return <ChatTab onGenerate={handleChatGenerate} disabled={pipelineRunning} />;
-      case 'audio':
+      case 'lyrics':
         return (
-          <AudioTab
+          <LyricsTab
             mode={t2aMode} setMode={setT2aMode}
             genre={t2aGenre} setGenre={setT2aGenre}
             language={t2aLanguage} setLanguage={setT2aLanguage}
             lyrics={t2aLyrics} setLyrics={setT2aLyrics}
             theme={t2aTheme} setTheme={setT2aTheme}
             structure={t2aStructure} setStructure={setT2aStructure}
+            generatedLyrics={t2aGeneratedLyrics}
+            lyricsGenerating={t2aLyricsGenerating}
+            onGenerateLyrics={handleGenerateLyrics}
+          />
+        );
+      case 'music':
+        return (
+          <MusicTab
+            genre={t2aGenre} setGenre={setT2aGenre}
+            lyrics={t2aLyrics} setLyrics={setT2aLyrics}
             bpm={t2aBpm} setBpm={setT2aBpm}
             keyScale={t2aKey} setKeyScale={setT2aKey}
             duration={t2aDuration} setDuration={setT2aDuration}
-            generatedLyrics={t2aGeneratedLyrics}
-            lyricsGenerating={t2aLyricsGenerating}
             result={t2aResult}
             loading={t2aAudioLoading}
-            onGenerateLyrics={handleGenerateLyrics}
+            timeSignature={t2aTimeSignature} setTimeSignature={setT2aTimeSignature}
+            cfgScale={t2aCfgScale} setCfgScale={setT2aCfgScale}
+            temperature={t2aTemperature} setTemperature={setT2aTemperature}
+            topP={t2aTopP} setTopP={setT2aTopP}
+            topK={t2aTopK} setTopK={setT2aTopK}
+            steps={t2aSteps} setSteps={setT2aSteps}
+            samplingShift={t2aSamplingShift} setSamplingShift={setT2aSamplingShift}
             onGenerate={handleGenerateAudio}
             onCancel={cancelT2a}
           />
@@ -351,6 +491,15 @@ export default function Workspace() {
             camera={videoCamera} setCamera={setVideoCamera}
             results={videoResults}
             loading={videoLoading}
+            cfg={videoCfg} setCfg={setVideoCfg}
+            sampler={videoSampler} setSampler={setVideoSampler}
+            characterMotion={videoCharMotion} setCharacterMotion={setVideoCharMotion}
+            useSrtDuration={videoUseSrtDuration} setUseSrtDuration={setVideoUseSrtDuration}
+            tailLossFrames={videoTailFrames} setTailLossFrames={setVideoTailFrames}
+            preFrames={videoPreFrames} setPreFrames={setVideoPreFrames}
+            crf={videoCrf} setCrf={setVideoCrf}
+            videoFormat={videoFormat} setVideoFormat={setVideoFormat}
+            loras={videoLoras} setLoras={setVideoLoras}
             onGenerate={handleGenerateVideo}
             onCancel={cancelVideo}
           />
@@ -364,6 +513,13 @@ export default function Workspace() {
             step={pipelineStep}
             status={pipelineStatus}
             onGenerate={handleRunPipeline}
+          />
+        );
+      case 'timeline':
+        return (
+          <TimelineTab
+            videoResult={videoResults[videoResults.length - 1]}
+            audioResult={t2aResult || coverResult}
           />
         );
       default:
@@ -383,6 +539,7 @@ export default function Workspace() {
       <div className="pt-28 px-4 md:px-8 max-w-6xl mx-auto min-h-screen">
         {renderTab()}
       </div>
+      <ChatPopup onAction={handleChatAction} />
       <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
     </main>
   );

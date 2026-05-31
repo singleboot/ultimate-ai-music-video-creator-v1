@@ -69,3 +69,9 @@ export const cancelJob = (promptId) =>
 
 export const sendChat = (message, history) =>
   api.post('/api/chat', { message, history });
+
+export const generateSubtitles = (lyrics) =>
+  api.post('/api/generate/subtitles', { lyrics, source: 'lyrics' });
+
+export const generateThumbnailPrompts = (context) =>
+  api.post('/api/generate/thumbnail-prompts', { context, count: 3 });
