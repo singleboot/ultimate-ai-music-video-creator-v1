@@ -34,7 +34,7 @@ const lyricsOut = [{ id: 'output-0', label: 'lyrics', icon: '\uD83D\uDCDD' }];
 
 const musicInputs = [
   { id: 'input-0', label: 'lyrics', icon: '\uD83D\uDCDD' },
-  { id: 'input-1', label: 'params', icon: '\u2699\uFE0F' },
+  { id: 'input-1', label: 'settings', icon: '\u2699\uFE0F' },
 ];
 const musicOut = [{ id: 'output-0', label: 'audio', icon: '\uD83C\uDFB5' }];
 
