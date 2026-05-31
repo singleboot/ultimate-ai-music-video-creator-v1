@@ -1,35 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Handle, Position, NodeResizer } from '@xyflow/react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Handle, Position } from '@xyflow/react';
 import useWorkflowStore from '../../store/workflowStore';
-
-const spinnerKeyframes = `
-@keyframes bv-spinner {
-  to { transform: rotate(360deg); }
-}
-`;
-
-function SpinnerSmall() {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        width: 12, height: 12,
-        border: '2px solid rgba(255,255,255,0.25)',
-        borderTopColor: '#fff',
-        borderRadius: '50%',
-        animation: 'bv-spinner 0.7s linear infinite',
-      }}
-    />
-  );
-}
-
-function handleTopOffset(count, index) {
-  const headerH = 36;
-  const spacing = 24;
-  return `${headerH + spacing * index + 8}px`;
-}
 
 export default function BaseNode({
   children,
@@ -48,100 +21,158 @@ export default function BaseNode({
   data = {},
 }) {
   const [hovered, setHovered] = useState(false);
+  const [resizing, setResizing] = useState(false);
   const useLabeled = !!(inputHandles || outputHandles);
+  const resizeRef = useRef(null);
+  const startPos = useRef({ x: 0, y: 0, w: 0, h: 0, px: 0, py: 0 });
   const resizeNodeCentered = useWorkflowStore((s) => s.resizeNodeCentered);
+  const node = useWorkflowStore((s) => s.nodes.find((n) => n.id === nodeId));
+
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const nodeEl = resizeRef.current?.parentElement;
+    if (!nodeEl) return;
+    startPos.current = {
+      x: e.clientX,
+      y: e.clientY,
+      w: nodeEl.offsetWidth,
+      h: nodeEl.offsetHeight,
+      px: 0,
+      py: 0,
+    };
+    setResizing(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!resizing) return;
+    const dx = e.clientX - startPos.current.x;
+    const dy = e.clientY - startPos.current.y;
+    const newW = Math.max(180, startPos.current.w + dx);
+    const newH = Math.max(60, startPos.current.h + dy);
+    resizeNodeCentered(nodeId, newW, newH);
+  }, [resizing, nodeId, resizeNodeCentered]);
+
+  const handleMouseUp = useCallback(() => {
+    setResizing(false);
+  }, []);
+
+  useEffect(() => {
+    if (!resizing) return;
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizing, handleMouseMove, handleMouseUp]);
+
+  const nodeW = node?.width || undefined;
+  const nodeH = node?.height || undefined;
 
   return (
-    <>
-      <style>{spinnerKeyframes}</style>
-      <NodeResizer
-        minWidth={180}
-        minHeight={60}
-        isVisible={selected}
-        onResizeEnd={(_, params) => resizeNodeCentered(nodeId, params.width, params.height)}
-        handleStyle={{
-          width: 8, height: 8, borderRadius: 2,
-          background: color,
-          border: '2px solid rgba(15,5,30,0.95)',
-        }}
-        lineStyle={{
-          borderColor: 'rgba(176,38,255,0.2)',
-        }}
-      />
+    <div
+      data-nodeid={nodeId}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      ref={resizeRef}
+      style={{
+        background: 'rgba(15,5,30,0.95)',
+        border: `1px solid ${selected ? color : isRunning ? color : 'rgba(176,38,255,0.2)'}`,
+        borderRadius: 12,
+        color: '#fff',
+        minWidth: 180,
+        width: nodeW,
+        height: nodeH,
+        fontFamily: 'inherit',
+        boxShadow: selected
+          ? `0 0 20px ${color}40, 0 2px 12px rgba(0,0,0,0.4)`
+          : isRunning ? `0 0 16px ${color}30` : '0 2px 12px rgba(0,0,0,0.4)',
+        transition: resizing ? 'none' : 'border-color 0.2s, box-shadow 0.2s',
+        position: 'relative',
+        overflow: 'hidden',
+        ...overrideStyle,
+      }}
+    >
+      {/* Header */}
       <div
-        data-nodeid={nodeId}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         style={{
-          background: 'rgba(15,5,30,0.95)',
-          border: `1px solid ${selected ? color : isRunning ? color : 'rgba(176,38,255,0.2)'}`,
-          borderRadius: 12,
-          color: '#fff',
-          minWidth: 180,
-          fontFamily: 'inherit',
-          boxShadow: selected
-            ? `0 0 20px ${color}40, 0 2px 12px rgba(0,0,0,0.4)`
-            : isRunning ? `0 0 16px ${color}30` : '0 2px 12px rgba(0,0,0,0.4)',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
+          padding: '7px 10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
           position: 'relative',
-          ...overrideStyle,
         }}
       >
-        {/* Header */}
         <div
           style={{
-            padding: '7px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            position: 'relative',
+            width: 6, height: 6, borderRadius: '50%',
+            background: isRunning ? color : '#4ade80',
+            flexShrink: 0,
           }}
-        >
+        />
+        <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>
+          {title}
+        </span>
+        {(selected || hovered) && nodeId && (
           <div
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              data.onDelete?.(nodeId);
+            }}
             style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: isRunning ? color : '#4ade80',
+              width: 18, height: 18, borderRadius: 4,
+              background: 'rgba(239,68,68,0.12)',
+              color: '#ef4444',
+              fontSize: 10, fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 1,
+              transition: 'background 0.15s',
               flexShrink: 0,
             }}
-          />
-          <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>
-            {title}
-          </span>
-          {isRunning && <SpinnerSmall />}
-          {(selected || hovered) && nodeId && (
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                data.onDelete?.(nodeId);
-              }}
-              style={{
-                width: 18, height: 18, borderRadius: 4,
-                background: 'rgba(239,68,68,0.12)',
-                color: '#ef4444',
-                fontSize: 10, fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                lineHeight: 1,
-                transition: 'background 0.15s',
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
-            >
-              x
-            </div>
-          )}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
+          >
+            x
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '8px 10px 10px' }}>{children}</div>
+
+      {/* Resize handle (bottom-right corner) */}
+      {(selected || hovered) && (
+        <div
+          onMouseDown={handleMouseDown}
+          style={{
+            position: 'absolute',
+            bottom: 0, right: 0,
+            width: 16, height: 16,
+            cursor: 'nwse-resize',
+            zIndex: 20,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" style={{ position: 'absolute', bottom: 2, right: 2 }}>
+            <line x1="12" y1="4" x2="12" y2="12" x3="4" y3="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="9" y1="7" x2="9" y2="9" x3="7" y3="9" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="12" y1="4" x2="12" y2="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="12" y1="12" x2="4" y2="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="9" y1="7" x2="9" y2="9" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="9" y1="9" x2="7" y2="9" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
         </div>
+      )}
 
-        {/* Body */}
-        <div style={{ padding: '8px 10px 10px' }}>{children}</div>
-
-        {/* Input handles */}
-        {useLabeled && inputHandles
-          ? inputHandles.map((h, i) => (
+      {/* Input handles */}
+      {useLabeled && inputHandles
+        ? inputHandles.map((h, i) => {
+            const top = `${36 + 24 * i + 8}px`;
+            return (
               <div key={h.id}>
                 <Handle
                   type="target"
@@ -151,51 +182,46 @@ export default function BaseNode({
                     background: color,
                     width: 8, height: 8,
                     border: '2px solid rgba(15,5,30,0.95)',
-                    top: handleTopOffset(inputHandles.length, i),
-                    left: -4,
-                    zIndex: 2,
+                    top, left: -4, zIndex: 2,
                   }}
                 />
                 <div
                   style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: handleTopOffset(inputHandles.length, i),
+                    position: 'absolute', left: 0, top,
                     transform: 'translateX(10px) translateY(-50%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    fontSize: 9,
-                    color: '#b9b4d0',
-                    pointerEvents: 'none',
-                    whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 2,
+                    fontSize: 9, color: '#b9b4d0',
+                    pointerEvents: 'none', whiteSpace: 'nowrap',
                   }}
                 >
                   <span style={{ fontSize: 10 }}>{h.icon}</span>
                   <span style={{ marginLeft: 1 }}>{h.label}</span>
                 </div>
               </div>
-            ))
-          : hasInput && !useLabeled &&
-            Array.from({ length: inputCount }).map((_, i) => (
-              <Handle
-                key={`in-${i}`}
-                type="target"
-                position={Position.Top}
-                id={`input-${i}`}
-                style={{
-                  background: '#b026ff',
-                  width: 8, height: 8,
-                  border: '2px solid rgba(15,5,30,0.95)',
-                  top: -4,
-                  left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
-                }}
-              />
-            ))}
+            );
+          })
+        : hasInput && !useLabeled &&
+          Array.from({ length: inputCount }).map((_, i) => (
+            <Handle
+              key={`in-${i}`}
+              type="target"
+              position={Position.Top}
+              id={`input-${i}`}
+              style={{
+                background: '#b026ff',
+                width: 8, height: 8,
+                border: '2px solid rgba(15,5,30,0.95)',
+                top: -4,
+                left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
+              }}
+            />
+          ))}
 
-        {/* Output handles */}
-        {useLabeled && outputHandles
-          ? outputHandles.map((h, i) => (
+      {/* Output handles */}
+      {useLabeled && outputHandles
+        ? outputHandles.map((h, i) => {
+            const top = `${36 + 24 * i + 8}px`;
+            return (
               <div key={h.id}>
                 <Handle
                   type="source"
@@ -205,24 +231,16 @@ export default function BaseNode({
                     background: '#63d4ff',
                     width: 8, height: 8,
                     border: '2px solid rgba(15,5,30,0.95)',
-                    top: handleTopOffset(outputHandles.length, i),
-                    right: -4,
-                    zIndex: 2,
+                    top, right: -4, zIndex: 2,
                   }}
                 />
                 <div
                   style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: handleTopOffset(outputHandles.length, i),
+                    position: 'absolute', right: 0, top,
                     transform: 'translateX(-10px) translateY(-50%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    fontSize: 9,
-                    color: '#b9b4d0',
-                    pointerEvents: 'none',
-                    whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 2,
+                    fontSize: 9, color: '#b9b4d0',
+                    pointerEvents: 'none', whiteSpace: 'nowrap',
                     flexDirection: 'row-reverse',
                   }}
                 >
@@ -230,25 +248,25 @@ export default function BaseNode({
                   <span>{h.label}</span>
                 </div>
               </div>
-            ))
-          : hasOutput && !useLabeled &&
-            Array.from({ length: outputCount }).map((_, i) => (
-              <Handle
-                key={`out-${i}`}
-                type="source"
-                position={Position.Bottom}
-                id={`output-${i}`}
-                style={{
-                  background: '#63d4ff',
-                  width: 8, height: 8,
-                  border: '2px solid rgba(15,5,30,0.95)',
-                  bottom: -4,
-                  left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
-                }}
-              />
-            ))}
-      </div>
-    </>
+            );
+          })
+        : hasOutput && !useLabeled &&
+          Array.from({ length: outputCount }).map((_, i) => (
+            <Handle
+              key={`out-${i}`}
+              type="source"
+              position={Position.Bottom}
+              id={`output-${i}`}
+              style={{
+                background: '#63d4ff',
+                width: 8, height: 8,
+                border: '2px solid rgba(15,5,30,0.95)',
+                bottom: -4,
+                left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
+              }}
+            />
+          ))}
+    </div>
   );
 }
 
