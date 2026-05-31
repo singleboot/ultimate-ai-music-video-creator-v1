@@ -116,7 +116,7 @@ const LyricsGeneratorNode = React.memo(function LyricsGeneratorNode({ data, id, 
           {STRUCTURES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         {data.lyrics && (
-          <div style={{ maxHeight: 120, overflowY: 'auto', fontSize: 10, color: '#b9b4d0', padding: 6, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(176,38,255,0.1)', lineHeight: 1.5 }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', fontSize: 10, color: '#b9b4d0', padding: 6, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(176,38,255,0.1)', lineHeight: 1.5 }}>
             {data.lyrics}
           </div>
         )}
@@ -373,7 +373,7 @@ const VideoGeneratorNode = React.memo(function VideoGeneratorNode({ data, id, se
           ))}
         </div>
         <div style={labelBase}>Prompt</div>
-        <textarea value={data.prompt || ''} onChange={(e) => data.onUpdate?.(id, { prompt: e.target.value })} placeholder="Describe the video..." rows={3} style={{ ...inputBase, resize: 'vertical', minHeight: 60 }} />
+        <textarea value={data.prompt || ''} onChange={(e) => data.onUpdate?.(id, { prompt: e.target.value })} placeholder="Describe the video..." style={{ ...inputBase, resize: 'none', flex: 1, minHeight: 0 }} />
         <div style={labelBase}>Resolution</div>
         <select value={data.resolution || '1024x576'} onChange={(e) => data.onUpdate?.(id, { resolution: e.target.value })} style={selectBase}>
           {['512x512', '768x768', '1024x576', '1024x1024', '1920x1080'].map((r) => <option key={r} value={r}>{r}</option>)}
@@ -421,7 +421,7 @@ const ImageGeneratorNode = React.memo(function ImageGeneratorNode({ data, id, se
     <BaseNode title="Image Generator" color="#14b8a6" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={imageInputs} outputHandles={imageOut}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         <div style={labelBase}>Prompt</div>
-        <textarea value={data.prompt || ''} onChange={(e) => data.onUpdate?.(id, { prompt: e.target.value })} placeholder="Describe the image..." rows={3} style={{ ...inputBase, resize: 'vertical', minHeight: 60 }} />
+        <textarea value={data.prompt || ''} onChange={(e) => data.onUpdate?.(id, { prompt: e.target.value })} placeholder="Describe the image..." style={{ ...inputBase, resize: 'none', flex: 1, minHeight: 0 }} />
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={labelBase}>Width</div>
