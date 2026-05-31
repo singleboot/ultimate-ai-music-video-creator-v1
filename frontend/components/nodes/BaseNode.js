@@ -23,28 +23,25 @@ export default function BaseNode({
   const [hovered, setHovered] = useState(false);
   const [resizing, setResizing] = useState(false);
   const useLabeled = !!(inputHandles || outputHandles);
-  const resizeRef = useRef(null);
-  const startPos = useRef({ x: 0, y: 0, w: 0, h: 0, px: 0, py: 0 });
+  const startPos = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const resizeNodeCentered = useWorkflowStore((s) => s.resizeNodeCentered);
   const node = useWorkflowStore((s) => s.nodes.find((n) => n.id === nodeId));
 
-  const handleMouseDown = useCallback((e) => {
+  const handlePointerDown = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    const nodeEl = resizeRef.current?.parentElement;
+    const nodeEl = e.currentTarget.parentElement;
     if (!nodeEl) return;
     startPos.current = {
       x: e.clientX,
       y: e.clientY,
       w: nodeEl.offsetWidth,
       h: nodeEl.offsetHeight,
-      px: 0,
-      py: 0,
     };
     setResizing(true);
   }, []);
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     if (!resizing) return;
     const dx = e.clientX - startPos.current.x;
     const dy = e.clientY - startPos.current.y;
@@ -53,19 +50,19 @@ export default function BaseNode({
     resizeNodeCentered(nodeId, newW, newH);
   }, [resizing, nodeId, resizeNodeCentered]);
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     setResizing(false);
   }, []);
 
   useEffect(() => {
     if (!resizing) return;
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [resizing, handleMouseMove, handleMouseUp]);
+  }, [resizing, handlePointerMove, handlePointerUp]);
 
   const nodeW = node?.width || undefined;
   const nodeH = node?.height || undefined;
@@ -75,7 +72,6 @@ export default function BaseNode({
       data-nodeid={nodeId}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      ref={resizeRef}
       style={{
         background: 'rgba(15,5,30,0.95)',
         border: `1px solid ${selected ? color : isRunning ? color : 'rgba(176,38,255,0.2)'}`,
@@ -148,18 +144,17 @@ export default function BaseNode({
       {/* Resize handle (bottom-right corner) */}
       {(selected || hovered) && (
         <div
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           style={{
             position: 'absolute',
             bottom: 0, right: 0,
             width: 16, height: 16,
             cursor: 'nwse-resize',
             zIndex: 20,
+            touchAction: 'none',
           }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" style={{ position: 'absolute', bottom: 2, right: 2 }}>
-            <line x1="12" y1="4" x2="12" y2="12" x3="4" y3="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            <line x1="9" y1="7" x2="9" y2="9" x3="7" y3="9" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <line x1="12" y1="4" x2="12" y2="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
             <line x1="12" y1="12" x2="4" y2="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
             <line x1="9" y1="7" x2="9" y2="9" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
