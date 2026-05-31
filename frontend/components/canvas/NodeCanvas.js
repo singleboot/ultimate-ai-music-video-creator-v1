@@ -191,6 +191,9 @@ export default function NodeCanvas() {
     edgeCountRef.current = edges.length;
   }, [edges]);
 
+  const onUpdate = useCallback((nodeId, data) => updateNodeData(nodeId, data), [updateNodeData]);
+  const onDelete = useCallback((nodeId) => removeNode(nodeId), [removeNode]);
+
   const enrichedNodes = useMemo(() => {
     return nodes.map((n) => ({ ...n, data: { ...n.data, onUpdate, onDelete } }));
   }, [nodes, onUpdate, onDelete]);
