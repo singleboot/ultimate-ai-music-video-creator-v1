@@ -56,7 +56,7 @@ const HANDLE_KEY = {
   DurationNode: { 'output-0': 'duration' },
   AudioFileNode: { 'output-0': 'audio', 'output-1': 'file' },
   LyricsInputNode: { 'output-0': 'lyrics' },
-  LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'output-0': 'lyrics' },
+  LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'duration', 'output-0': 'lyrics' },
   MusicGeneratorNode: { 'input-0': 'lyrics', 'input-1': 'settings', 'output-0': 'audio' },
   CoverGeneratorNode: { 'input-0': 'audio', 'input-1': 'genre', 'input-2': 'bpm', 'output-0': 'audio' },
   TTSGeneratorNode: { 'input-0': 'text', 'input-1': 'language', 'input-2': 'voice', 'output-0': 'audio' },
@@ -87,7 +87,9 @@ const SUGGESTIONS = {
     { type: 'CoverGeneratorNode', handle: 'input-2', label: 'Cover Generator' },
     { type: 'MusicGeneratorNode', handle: 'input-1', label: 'Music Generator' },
   ],
-  duration: [],
+  duration: [
+    { type: 'LyricsGeneratorNode', handle: 'input-2', label: 'Lyrics Generator' },
+  ],
   audio: [
     { type: 'CoverGeneratorNode', handle: 'input-0', label: 'Cover Generator' },
     { type: 'AudioPlayerNode', handle: 'input-0', label: 'Audio Player' },
@@ -130,6 +132,9 @@ const INPUT_SUGGESTIONS = {
   ],
   bpm: [
     { type: 'BPMNode', handle: 'output-0', label: 'BPM' },
+  ],
+  duration: [
+    { type: 'DurationNode', handle: 'output-0', label: 'Duration' },
   ],
   audio: [
     { type: 'AudioFileNode', handle: 'output-0', label: 'Audio File' },

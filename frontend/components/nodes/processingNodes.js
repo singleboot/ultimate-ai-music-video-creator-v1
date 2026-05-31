@@ -29,6 +29,7 @@ const SpinnerBtn = () => (
 const lyricsInputs = [
   { id: 'input-0', label: 'theme', icon: '\uD83C\uDFAD' },
   { id: 'input-1', label: 'genre', icon: '\uD83C\uDFB6' },
+  { id: 'input-2', label: 'duration', icon: '\u23F1\uFE0F' },
 ];
 const lyricsOut = [{ id: 'output-0', label: 'lyrics', icon: '\uD83D\uDCDD' }];
 
