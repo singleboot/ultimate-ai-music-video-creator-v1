@@ -40,7 +40,7 @@ const AudioPlayerNode = React.memo(function AudioPlayerNode({ data, id, selected
             <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #b026ff, #ff3bd4)', borderRadius: 8, transition: 'width 0.1s linear' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={toggle} style={{ width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#b026ff', color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <button onClick={toggle} style={{ width: 16, height: 16, borderRadius: '50%', border: 'none', background: '#b026ff', color: '#fff', fontSize: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               {playing ? '\u275A\u275A' : '\u25B6'}
             </button>
             <span style={{ fontSize: 11, color: '#b9b4d0', fontFamily: 'monospace' }}>{fmt(cur)} / {fmt(dur)}</span>

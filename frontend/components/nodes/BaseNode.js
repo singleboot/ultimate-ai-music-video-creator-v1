@@ -75,39 +75,38 @@ export default function BaseNode({
       style={{
         background: 'rgba(15,5,30,0.95)',
         border: `1px solid ${selected ? color : isRunning ? color : 'rgba(176,38,255,0.2)'}`,
-        borderRadius: 12,
+        borderRadius: 10,
         color: '#fff',
-        minWidth: 180,
+        minWidth: 150,
         width: nodeW,
         height: nodeH,
         fontFamily: 'inherit',
         boxShadow: selected
-          ? `0 0 20px ${color}40, 0 2px 12px rgba(0,0,0,0.4)`
-          : isRunning ? `0 0 16px ${color}30` : '0 2px 12px rgba(0,0,0,0.4)',
+          ? `0 0 16px ${color}35, 0 2px 8px rgba(0,0,0,0.4)`
+          : isRunning ? `0 0 12px ${color}25` : '0 2px 8px rgba(0,0,0,0.4)',
         transition: resizing ? 'none' : 'border-color 0.2s, box-shadow 0.2s',
         position: 'relative',
-        overflow: 'hidden',
         ...overrideStyle,
       }}
     >
       {/* Header */}
       <div
         style={{
-          padding: '7px 10px',
+          padding: '5px 8px',
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          gap: 5,
           position: 'relative',
         }}
       >
         <div
           style={{
-            width: 6, height: 6, borderRadius: '50%',
+            width: 5, height: 5, borderRadius: '50%',
             background: isRunning ? color : '#4ade80',
             flexShrink: 0,
           }}
         />
-        <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, flex: 1, lineHeight: 1.3 }}>
           {title}
         </span>
         {(selected || hovered) && nodeId && (
@@ -118,10 +117,10 @@ export default function BaseNode({
               data.onDelete?.(nodeId);
             }}
             style={{
-              width: 18, height: 18, borderRadius: 4,
+              width: 16, height: 16, borderRadius: 3,
               background: 'rgba(239,68,68,0.12)',
               color: '#ef4444',
-              fontSize: 10, fontWeight: 700,
+              fontSize: 9, fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -139,7 +138,7 @@ export default function BaseNode({
       </div>
 
       {/* Body */}
-      <div style={{ padding: '8px 10px 10px' }}>{children}</div>
+      <div style={{ padding: '5px 8px 8px' }}>{children}</div>
 
       {/* Resize handle (bottom-right corner) */}
       {(selected || hovered) && (
@@ -166,7 +165,7 @@ export default function BaseNode({
       {/* Input handles */}
       {useLabeled && inputHandles
         ? inputHandles.map((h, i) => {
-            const top = `${36 + 24 * i + 8}px`;
+            const top = `${26 + 22 * i + 6}px`;
             return (
               <div key={h.id}>
                 <Handle
@@ -175,7 +174,7 @@ export default function BaseNode({
                   id={h.id}
                   style={{
                     background: color,
-                    width: 8, height: 8,
+                    width: 7, height: 7,
                     border: '2px solid rgba(15,5,30,0.95)',
                     top, left: -4, zIndex: 2,
                   }}
@@ -183,39 +182,39 @@ export default function BaseNode({
                 <div
                   style={{
                     position: 'absolute', left: 0, top,
-                    transform: 'translateX(10px) translateY(-50%)',
+                    transform: 'translateX(8px) translateY(-50%)',
                     display: 'flex', alignItems: 'center', gap: 2,
-                    fontSize: 9, color: '#b9b4d0',
+                    fontSize: 8, color: '#b9b4d0',
                     pointerEvents: 'none', whiteSpace: 'nowrap',
                   }}
                 >
-                  <span style={{ fontSize: 10 }}>{h.icon}</span>
-                  <span style={{ marginLeft: 1 }}>{h.label}</span>
+                  <span style={{ fontSize: 9 }}>{h.icon}</span>
+                  <span>{h.label}</span>
                 </div>
               </div>
             );
           })
         : hasInput && !useLabeled &&
-          Array.from({ length: inputCount }).map((_, i) => (
-            <Handle
-              key={`in-${i}`}
-              type="target"
-              position={Position.Top}
-              id={`input-${i}`}
-              style={{
-                background: '#b026ff',
-                width: 8, height: 8,
-                border: '2px solid rgba(15,5,30,0.95)',
-                top: -4,
-                left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
-              }}
-            />
-          ))}
+            Array.from({ length: inputCount }).map((_, i) => (
+              <Handle
+                key={`in-${i}`}
+                type="target"
+                position={Position.Top}
+                id={`input-${i}`}
+                style={{
+                  background: '#b026ff',
+                  width: 7, height: 7,
+                  border: '2px solid rgba(15,5,30,0.95)',
+                  top: -4,
+                  left: inputCount === 1 ? '50%' : `${((i + 1) / (inputCount + 1)) * 100}%`,
+                }}
+              />
+            ))}
 
       {/* Output handles */}
       {useLabeled && outputHandles
         ? outputHandles.map((h, i) => {
-            const top = `${36 + 24 * i + 8}px`;
+            const top = `${26 + 22 * i + 6}px`;
             return (
               <div key={h.id}>
                 <Handle
@@ -224,7 +223,7 @@ export default function BaseNode({
                   id={h.id}
                   style={{
                     background: '#63d4ff',
-                    width: 8, height: 8,
+                    width: 7, height: 7,
                     border: '2px solid rgba(15,5,30,0.95)',
                     top, right: -4, zIndex: 2,
                   }}
@@ -232,47 +231,47 @@ export default function BaseNode({
                 <div
                   style={{
                     position: 'absolute', right: 0, top,
-                    transform: 'translateX(-10px) translateY(-50%)',
+                    transform: 'translateX(-8px) translateY(-50%)',
                     display: 'flex', alignItems: 'center', gap: 2,
-                    fontSize: 9, color: '#b9b4d0',
+                    fontSize: 8, color: '#b9b4d0',
                     pointerEvents: 'none', whiteSpace: 'nowrap',
                     flexDirection: 'row-reverse',
                   }}
                 >
-                  <span style={{ fontSize: 10 }}>{h.icon}</span>
+                  <span style={{ fontSize: 9 }}>{h.icon}</span>
                   <span>{h.label}</span>
                 </div>
               </div>
             );
           })
         : hasOutput && !useLabeled &&
-          Array.from({ length: outputCount }).map((_, i) => (
-            <Handle
-              key={`out-${i}`}
-              type="source"
-              position={Position.Bottom}
-              id={`output-${i}`}
-              style={{
-                background: '#63d4ff',
-                width: 8, height: 8,
-                border: '2px solid rgba(15,5,30,0.95)',
-                bottom: -4,
-                left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
-              }}
-            />
-          ))}
+            Array.from({ length: outputCount }).map((_, i) => (
+              <Handle
+                key={`out-${i}`}
+                type="source"
+                position={Position.Bottom}
+                id={`output-${i}`}
+                style={{
+                  background: '#63d4ff',
+                  width: 7, height: 7,
+                  border: '2px solid rgba(15,5,30,0.95)',
+                  bottom: -4,
+                  left: outputCount === 1 ? '50%' : `${((i + 1) / (outputCount + 1)) * 100}%`,
+                }}
+              />
+            ))}
     </div>
   );
 }
 
 const inputBase = {
   width: '100%',
-  padding: '6px 8px',
-  borderRadius: 8,
+  padding: '4px 6px',
+  borderRadius: 6,
   border: '1px solid rgba(176,38,255,0.15)',
   background: 'rgba(255,255,255,0.04)',
   color: '#fff',
-  fontSize: 11,
+  fontSize: 10,
   outline: 'none',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
@@ -283,28 +282,28 @@ const selectBase = {
   ...inputBase,
   appearance: 'none',
   cursor: 'pointer',
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23b9b4d0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='%23b9b4d0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
   backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 8px center',
-  paddingRight: 26,
+  backgroundPosition: 'right 6px center',
+  paddingRight: 20,
 };
 
 const labelBase = {
   display: 'block',
-  fontSize: 10,
+  fontSize: 9,
   fontWeight: 500,
   color: '#b9b4d0',
-  marginBottom: 3,
+  marginBottom: 2,
 };
 
 const btnBase = {
   width: '100%',
-  padding: '3px 6px',
+  padding: '2px 5px',
   borderRadius: 4,
   border: 'none',
   background: '#b026ff',
   color: '#fff',
-  fontSize: 10,
+  fontSize: 9,
   fontWeight: 600,
   cursor: 'pointer',
   fontFamily: 'inherit',
@@ -312,7 +311,7 @@ const btnBase = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 3,
+  gap: 2,
 };
 
 export { inputBase, selectBase, labelBase, btnBase };
