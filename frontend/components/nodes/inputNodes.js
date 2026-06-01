@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import BaseNode, { inputBase, selectBase, labelBase } from './BaseNode';
+import BaseNode, { inputBase, selectBase, labelBase, Select } from './BaseNode';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip Hop', 'R&B', 'Electronic', 'EDM', 'House',
@@ -38,6 +38,7 @@ const lyricsOut = [{ id: 'output-0', label: 'lyrics', icon: '\uD83D\uDCDD' }];
 
 const GenreNode = React.memo(function GenreNode({ data, id, selected }) {
   const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState('');
   const selectedGenres = data.genre || [];
 
   const toggle = useCallback(
@@ -50,9 +51,20 @@ const GenreNode = React.memo(function GenreNode({ data, id, selected }) {
     [selectedGenres, data, id]
   );
 
+  const addCustom = () => {
+    const trimmed = custom.trim();
+    if (!trimmed) return;
+    if (!selectedGenres.includes(trimmed)) {
+      data.onUpdate?.(id, { genre: [...selectedGenres, trimmed] });
+    }
+    setCustom('');
+  };
+
+  const handleKeyDown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } };
+
   return (
     <BaseNode title="Genre" color="#b026ff" selected={selected} nodeId={id} data={data} outputHandles={genreOut}>
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={labelBase}>Genre / Style</div>
         <button
           onClick={() => setOpen(!open)}
@@ -96,6 +108,23 @@ const GenreNode = React.memo(function GenreNode({ data, id, selected }) {
             ))
           )}
         </button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input
+            type="text"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="+ custom genre..."
+            style={{ ...inputBase, flex: 1, fontSize: 10, padding: '3px 6px' }}
+          />
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={addCustom}
+            style={{ padding: '2px 8px', borderRadius: 4, border: 'none', background: '#b026ff', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+          >
+            Add
+          </button>
+        </div>
         {open && (
           <div
             style={{
@@ -144,15 +173,11 @@ const LanguageNode = React.memo(function LanguageNode({ data, id, selected }) {
   return (
     <BaseNode title="Language" color="#63d4ff" selected={selected} nodeId={id} data={data} outputHandles={langOut}>
       <div style={labelBase}>Language</div>
-      <select
+      <Select
         value={data.language || 'en'}
         onChange={(e) => data.onUpdate?.(id, { language: e.target.value })}
-        style={selectBase}
-      >
-        {LANGUAGES.map((l) => (
-          <option key={l.code} value={l.code}>{l.name}</option>
-        ))}
-      </select>
+        options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))}
+      />
     </BaseNode>
   );
 });

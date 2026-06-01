@@ -94,13 +94,12 @@ export default function BaseNode({
         ...overrideStyle,
       }}
     >
-      {/* Header */}
       <div
         style={{
           padding: '5px 8px',
           display: 'flex',
           alignItems: 'center',
-          gap: 5,
+          gap: 4,
           position: 'relative',
           minHeight: 26,
         }}
@@ -112,7 +111,7 @@ export default function BaseNode({
             flexShrink: 0,
           }}
         />
-        <span style={{ fontSize: 11, fontWeight: 600, flex: 1, lineHeight: 1.3 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, flex: 1, lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title}
         </span>
         {(selected || hovered) && nodeId && (
@@ -143,15 +142,13 @@ export default function BaseNode({
         )}
       </div>
 
-      {/* Body */}
       <div style={{
-        padding: `0 ${outCount > 0 ? '24' : '8'}px 8px ${inCount > 0 ? '24' : '8'}px`,
+        padding: `0 ${outCount > 0 ? '22' : '8'}px 8px ${inCount > 0 ? '22' : '8'}px`,
         flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
       }}>
         {children}
       </div>
 
-      {/* Resize handle (bottom-right corner) */}
       {(selected || hovered) && (
         <div
           onPointerDown={handlePointerDown}
@@ -173,31 +170,37 @@ export default function BaseNode({
         </div>
       )}
 
-      {/* Input handles + icon labels */}
       {useLabeled && inputHandles
         ? inputHandles.map((h, i) => {
-            const top = `${28 + 20 * i}px`;
+            const cy = 28 + 20 * i;
             return (
               <React.Fragment key={h.id}>
                 <Handle
-                  type="source"
-                  position={Position.Right}
+                  type="target"
+                  position={Position.Left}
                   id={h.id}
                   title={h.label}
+                  isConnectableStart={true}
                   style={{
-                    background: '#63d4ff',
-                    width: 6, height: 6,
-                    border: '2px solid rgba(15,5,30,0.95)',
-                    top, right: -3, zIndex: 2,
+                    background: 'transparent',
+                    width: 1, height: 1,
+                    border: 'none',
+                    top: cy, left: 0,
                   }}
                 />
                 <div
                   style={{
-                    position: 'absolute', right: 4, top,
-                    transform: 'translateY(-50%)',
-                    fontSize: 9, lineHeight: 1,
+                    position: 'absolute',
+                    left: -10, top: cy - 10,
+                    width: 20, height: 20,
+                    borderRadius: '50%',
+                    background: color,
+                    border: '2px solid rgba(15,5,30,0.95)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     pointerEvents: 'none',
-                    zIndex: 1,
+                    opacity: 0.4,
+                    fontSize: 11,
+                    lineHeight: 1,
                   }}
                 >
                   {h.icon}
@@ -222,31 +225,37 @@ export default function BaseNode({
             />
           ))}
 
-      {/* Output handles + icon labels */}
-      {useLabeled && outputHandles
+{useLabeled && outputHandles
         ? outputHandles.map((h, i) => {
-            const top = `${28 + 20 * i}px`;
+            const cy = 28 + 20 * i;
             return (
               <React.Fragment key={h.id}>
                 <Handle
                   type="source"
                   position={Position.Right}
                   id={h.id}
+                  title={h.label}
+                  isConnectableStart={true}
                   style={{
-                    background: '#63d4ff',
-                    width: 6, height: 6,
-                    border: '2px solid rgba(15,5,30,0.95)',
-                    top, right: -3, zIndex: 2,
+                    background: 'transparent',
+                    width: 1, height: 1,
+                    border: 'none',
+                    top: cy, right: 0,
                   }}
                 />
                 <div
-                  title={h.label}
                   style={{
-                    position: 'absolute', right: 4, top,
-                    transform: 'translateY(-50%)',
-                    fontSize: 9, lineHeight: 1,
+                    position: 'absolute',
+                    right: -10, top: cy - 10,
+                    width: 20, height: 20,
+                    borderRadius: '50%',
+                    background: '#63d4ff',
+                    border: '2px solid rgba(15,5,30,0.95)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     pointerEvents: 'none',
-                    zIndex: 1,
+                    opacity: 0.4,
+                    fontSize: 11,
+                    lineHeight: 1,
                   }}
                 >
                   {h.icon}
@@ -324,4 +333,76 @@ const btnBase = {
   gap: 2,
 };
 
-export { inputBase, selectBase, labelBase, btnBase };
+function Select({ value, onChange, options, style }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', ...style }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          ...inputBase,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 4,
+          paddingRight: 6,
+          userSelect: 'none',
+        }}
+      >
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10 }}>
+          {options.find((o) => o.value === value)?.label || value}
+        </span>
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#b9b4d0" strokeWidth="2" style={{ flexShrink: 0 }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </div>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0, right: 0,
+            zIndex: 100,
+            marginTop: 2,
+            borderRadius: 6,
+            border: '1px solid rgba(176,38,255,0.3)',
+            background: '#1a0a2e',
+            overflow: 'hidden',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          }}
+        >
+          {options.map((opt) => (
+            <div
+              key={opt.value}
+              onClick={() => { setOpen(false); onChange?.({ target: { value: opt.value } }); }}
+              style={{
+                padding: '5px 8px',
+                fontSize: 10,
+                color: opt.value === value ? '#b026ff' : '#e0dce6',
+                cursor: 'pointer',
+                background: opt.value === value ? 'rgba(176,38,255,0.1)' : 'transparent',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(176,38,255,0.15)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = opt.value === value ? 'rgba(176,38,255,0.1)' : 'transparent'; }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export { inputBase, selectBase, labelBase, btnBase, Select };

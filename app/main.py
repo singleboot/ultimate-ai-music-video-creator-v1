@@ -38,7 +38,7 @@ COMFYUI_OUTPUT_DIR = os.environ.get(
     "COMFYUI_OUTPUT_DIR",
     os.path.join(PROJECT_ROOT, "comfyui", "output"),
 )
-OUTPUT_DIR = COMFYUI_OUTPUT_DIR
+OUTPUT_DIR = os.path.realpath(COMFYUI_OUTPUT_DIR) if os.path.exists(COMFYUI_OUTPUT_DIR) else COMFYUI_OUTPUT_DIR
 
 # ---------------------------------------------------------------------------
 # Global state (set up during lifespan)
@@ -105,6 +105,16 @@ class LyricsGenerateRequest(BaseModel):
     language: str = "en"
     duration: int = 30
     seed: int = -1
+
+
+class LLMAudioAnalysisRequest(BaseModel):
+    """Request to analyze audio with Gemma4 LLM."""
+    audio_path: str = ""
+    prompt: str = ""
+    temperature: float = 0.7
+    top_k: int = 64
+    top_p: float = 0.95
+    max_length: int = 2048
 
 
 class ChatRequest(BaseModel):
@@ -219,6 +229,24 @@ async def generate_lyrics(req: LyricsGenerateRequest) -> dict:
         return {"status": "ok", "lyrics": lyrics}
     except Exception as e:
         logger.error("Lyrics generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generate/llm-audio-analysis")
+async def generate_llm_audio_analysis(req: LLMAudioAnalysisRequest) -> dict:
+    """Analyze audio using Gemma4 LLM via ComfyUI.
+
+    Uploads the audio, runs the llm_gemma4_text_gen_v1 workflow,
+    and returns the generated text description.
+    """
+    if not req.audio_path:
+        raise HTTPException(status_code=400, detail="audio_path is required")
+    params = req.model_dump()
+    try:
+        text = await pipeline_runner.run_llm_audio_analysis(params)
+        return {"status": "ok", "text": text}
+    except Exception as e:
+        logger.error("LLM audio analysis failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -433,6 +461,21 @@ async def generate(
                         params[k] = v
         except Exception:
             pass
+    elif "multipart/form-data" in content_type:
+        try:
+            async with request.form() as form:
+                gen_type = form.get("type") or type
+                for key in form:
+                    if key in ("type", "mode", "audio_file", "image_files"):
+                        continue
+                    val = form[key]
+                    if isinstance(val, str):
+                        try:
+                            params[key] = json.loads(val)
+                        except (json.JSONDecodeError, TypeError):
+                            params[key] = val
+        except Exception:
+            pass
     elif type is not None:
         gen_type = type
 
@@ -440,7 +483,7 @@ async def generate(
         raise HTTPException(
             status_code=400,
             detail="Missing 'type' field. Must be one of: text2audio, "
-                   "audio_cover, tts, prompt_creator, i2v, t2v, full_pipeline",
+            "audio_cover, tts, prompt_creator, llm_audio_analysis, i2v, t2v, full_pipeline",
         )
 
     # Handle file uploads
@@ -488,6 +531,10 @@ async def generate(
             output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".wav", ".mp3", ".flac", ".ogg", ".m4a")))
             return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls, "url": (output_urls + [""])[0], "audio_url": output_urls[0] if output_urls else None}
 
+        elif gen_type == "llm_audio_analysis":
+            text = await pipeline_runner.run_llm_audio_analysis(params)
+            return {"status": "completed", "text": text}
+
         elif gen_type == "prompt_creator":
             prompt_id = await pipeline_runner.run_prompt_creator(params)
             history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 300))
@@ -514,9 +561,9 @@ async def generate(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown generation type '{gen_type}'. Valid types: "
-                       f"text2audio, audio_cover, tts, prompt_creator, i2v, "
-                       f"t2v, full_pipeline",
+            detail=f"Unknown generation type '{gen_type}'. Valid types: "
+            f"text2audio, audio_cover, tts, prompt_creator, "
+            f"llm_audio_analysis, i2v, t2v, full_pipeline",
             )
 
     except ValueError as e:
@@ -638,3 +685,72 @@ async def list_workflows() -> dict:
     """List available workflows and their metadata."""
     info = workflow_editor.get_workflow_info()
     return {"workflows": info}
+
+
+@app.get("/api/workflows/category/{category}")
+async def get_workflows_by_category(category: str) -> dict:
+    """Get all workflows in a specific category.
+
+    Args:
+        category: Category name (e.g., 'text-to-audio', 'image-to-video').
+
+    Returns:
+        Dict with 'category' and 'workflows' list.
+    """
+    workflows = workflow_editor.get_workflows_by_category(category)
+    default_workflow = workflow_editor.get_default_workflow(category)
+    return {
+        "category": category,
+        "workflows": workflows,
+        "default": default_workflow,
+    }
+
+
+@app.post("/api/workflows/reload")
+async def reload_workflows() -> dict:
+    """Rescan the workflows directory and reload all workflow JSONs."""
+    return workflow_editor.reload()
+
+
+@app.post("/api/workflows/upload")
+async def upload_workflow(
+    file: UploadFile = File(...),
+    category: str = Form("uncategorized"),
+) -> dict:
+    """Upload a new workflow JSON file.
+
+    Args:
+        file: The workflow JSON file to upload.
+        category: Category for the workflow (text-to-audio, cover-audio, image, etc.).
+
+    Returns:
+        Dict with upload status and workflow info.
+    """
+    if not file.filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="Only .json files are allowed")
+
+    try:
+        content = await file.read()
+        workflow_data = json.loads(content)
+        
+        if not isinstance(workflow_data, dict):
+            raise HTTPException(status_code=400, detail="Invalid workflow format")
+
+        filename = file.filename
+        filepath = os.path.join(WORKFLOWS_DIR, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(workflow_data, f, indent=2)
+
+        workflow_editor.reload()
+        
+        return {
+            "status": "uploaded",
+            "filename": filename,
+            "category": category,
+            "message": f"Workflow '{filename}' uploaded successfully",
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

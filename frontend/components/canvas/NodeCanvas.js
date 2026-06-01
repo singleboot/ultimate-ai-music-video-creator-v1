@@ -6,13 +6,39 @@ import {
   MiniMap,
   Controls,
   Background,
+  useReactFlow,
+  getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import useWorkflowStore from '../../store/workflowStore';
 
 import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode } from '../nodes/inputNodes';
-import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, PromptCreatorNode, VideoGeneratorNode, ImageGeneratorNode } from '../nodes/processingNodes';
+import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, VideoGeneratorNode, ImageGeneratorNode } from '../nodes/processingNodes';
 import { AudioPlayerNode, VideoPlayerNode, ImagePreviewNode, TextPreviewNode } from '../nodes/outputNodes';
+
+function DeleteButtonEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd }) {
+  const [hover, setHover] = useState(false);
+  const [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+
+  return (
+    <g 
+      onMouseEnter={() => setHover(true)} 
+      onMouseLeave={() => setHover(false)}
+      style={{ cursor: 'pointer' }}
+    >
+      <path d={edgePath} style={{ ...style, strokeWidth: hover ? 3 : 2 }} markerEnd={markerEnd} fill="none" />
+      {hover && (
+        <g onClick={() => useWorkflowStore.getState().onEdgesChange([{ type: 'remove', id }])} style={{ cursor: 'pointer' }}>
+          <circle cx={labelX} cy={labelY} r={12} fill="transparent" />
+          <circle cx={labelX} cy={labelY} r={10} fill="#ef4444" stroke="#fff" strokeWidth={2} style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
+          <text x={labelX} y={labelY + 4} textAnchor="middle" fill="#fff" fontSize={12} fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>×</text>
+        </g>
+      )}
+    </g>
+  );
+}
+
+const edgeTypes = { smoothstep: DeleteButtonEdge };
 
 const nodeTypes = {
   GenreNode,
@@ -26,6 +52,7 @@ const nodeTypes = {
   MusicGeneratorNode,
   CoverGeneratorNode,
   TTSGeneratorNode,
+  LLMTextGenNode,
   PromptCreatorNode,
   VideoGeneratorNode,
   ImageGeneratorNode,
@@ -40,7 +67,8 @@ const NODE_LABELS = {
   BPMNode: 'BPM', DurationNode: 'Duration', AudioFileNode: 'Audio File',
   LyricsInputNode: 'Lyrics Input',
   LyricsGeneratorNode: 'Lyrics Generator', MusicGeneratorNode: 'Music Generator',
-  CoverGeneratorNode: 'Cover Generator', TTSGeneratorNode: 'TTS Voiceover',
+  CoverGeneratorNode: 'Cover Generator',   TTSGeneratorNode: 'TTS Voiceover',
+  LLMTextGenNode: 'Audio Analyzer',
   PromptCreatorNode: 'Prompt Creator', VideoGeneratorNode: 'Video Generator',
   ImageGeneratorNode: 'Image Generator',
   AudioPlayerNode: 'Audio Player', VideoPlayerNode: 'Video Player',
@@ -56,10 +84,11 @@ const HANDLE_KEY = {
   DurationNode: { 'output-0': 'duration' },
   AudioFileNode: { 'output-0': 'audio', 'output-1': 'file' },
   LyricsInputNode: { 'output-0': 'lyrics' },
-  LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'duration', 'output-0': 'lyrics' },
-  MusicGeneratorNode: { 'input-0': 'lyrics', 'input-1': 'settings', 'output-0': 'audio' },
+  LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'duration', 'input-3': 'language', 'output-0': 'lyrics' },
+  MusicGeneratorNode: { 'input-0': 'params', 'output-0': 'audio' },
   CoverGeneratorNode: { 'input-0': 'audio', 'input-1': 'genre', 'input-2': 'bpm', 'output-0': 'audio' },
   TTSGeneratorNode: { 'input-0': 'text', 'input-1': 'language', 'input-2': 'voice', 'output-0': 'audio' },
+  LLMTextGenNode: { 'input-0': 'audio', 'output-0': 'text' },
   PromptCreatorNode: { 'input-0': 'lyrics', 'input-1': 'theme', 'input-2': 'story', 'output-0': 'prompts' },
   VideoGeneratorNode: { 'input-0': 'prompts', 'input-1': 'image', 'output-0': 'video' },
   ImageGeneratorNode: { 'input-0': 'prompts', 'input-1': 'params', 'output-0': 'image' },
@@ -74,9 +103,9 @@ const SUGGESTIONS = {
   genre: [
     { type: 'LyricsGeneratorNode', handle: 'input-1', label: 'Lyrics Generator' },
     { type: 'CoverGeneratorNode', handle: 'input-1', label: 'Cover Generator' },
-    { type: 'MusicGeneratorNode', handle: 'input-1', label: 'Music Generator' },
   ],
   language: [
+    { type: 'LyricsGeneratorNode', handle: 'input-3', label: 'Lyrics Generator' },
     { type: 'TTSGeneratorNode', handle: 'input-1', label: 'TTS Voiceover' },
   ],
   theme: [
@@ -85,7 +114,6 @@ const SUGGESTIONS = {
   ],
   bpm: [
     { type: 'CoverGeneratorNode', handle: 'input-2', label: 'Cover Generator' },
-    { type: 'MusicGeneratorNode', handle: 'input-1', label: 'Music Generator' },
   ],
   duration: [
     { type: 'LyricsGeneratorNode', handle: 'input-2', label: 'Lyrics Generator' },
@@ -93,6 +121,7 @@ const SUGGESTIONS = {
   audio: [
     { type: 'CoverGeneratorNode', handle: 'input-0', label: 'Cover Generator' },
     { type: 'AudioPlayerNode', handle: 'input-0', label: 'Audio Player' },
+    { type: 'LLMTextGenNode', handle: 'input-0', label: 'Audio Analyzer' },
   ],
   file: [],
   lyrics: [
@@ -101,6 +130,8 @@ const SUGGESTIONS = {
   ],
   text: [
     { type: 'TTSGeneratorNode', handle: 'input-0', label: 'TTS Voiceover' },
+    { type: 'MusicGeneratorNode', handle: 'input-0', label: 'Music Generator' },
+    { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
   ],
   prompts: [
     { type: 'VideoGeneratorNode', handle: 'input-0', label: 'Video Generator' },
@@ -148,6 +179,11 @@ const INPUT_SUGGESTIONS = {
   ],
   text: [
     { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
+    { type: 'LLMTextGenNode', handle: 'output-0', label: 'Audio Analyzer' },
+  ],
+  params: [
+    { type: 'LyricsGeneratorNode', handle: 'output-0', label: 'Lyrics Generator' },
+    { type: 'LLMTextGenNode', handle: 'output-0', label: 'Audio Analyzer' },
   ],
   prompts: [
     { type: 'PromptCreatorNode', handle: 'output-0', label: 'Prompt Creator' },
@@ -182,6 +218,7 @@ export default function NodeCanvas() {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
 
   const reactFlowWrapper = useRef(null);
+  const reactFlowInstance = useReactFlow();
 
   const [suggestions, setSuggestions] = useState(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -198,6 +235,68 @@ export default function NodeCanvas() {
 
   const onUpdate = useCallback((nodeId, data) => updateNodeData(nodeId, data), [updateNodeData]);
   const onDelete = useCallback((nodeId) => removeNode(nodeId), [removeNode]);
+
+  // ── Autosave ──────────────────────────────────────────────
+  const autoSaveWorkflow = useWorkflowStore((s) => s.autoSaveWorkflow);
+  const backupTextContent = useWorkflowStore((s) => s.backupTextContent);
+
+  // Interval autosave every 30s
+  useEffect(() => {
+    const id = setInterval(() => {
+      autoSaveWorkflow();
+      backupTextContent();
+    }, 30000);
+    return () => clearInterval(id);
+  }, [autoSaveWorkflow, backupTextContent]);
+
+  // Debounced autosave on nodes/edges change
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      autoSaveWorkflow();
+      backupTextContent();
+    }, 2000);
+  }, [nodes, edges, autoSaveWorkflow, backupTextContent]);
+
+  // Save on unload
+  useEffect(() => {
+    const handler = () => {
+      useWorkflowStore.getState().autoSaveWorkflow();
+      useWorkflowStore.getState().backupTextContent();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // Restore from autosave if empty
+  useEffect(() => {
+    if (nodes.length > 0) return;
+    const restored = useWorkflowStore.getState().restoreAutoSave();
+    if (restored && restored.nodes.length > 0) {
+      useWorkflowStore.getState().applyAutoSave(restored);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Connection status ────────────────────────────────────
+  const [statusLLM, setStatusLLM] = useState(false);
+  const [statusComfy, setStatusComfy] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const r = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) });
+        setStatusLLM(r.ok);
+      } catch { setStatusLLM(false); }
+      try {
+        const r = await fetch('http://127.0.0.1:8188/system_stats', { signal: AbortSignal.timeout(3000) });
+        setStatusComfy(r.ok);
+      } catch { setStatusComfy(false); }
+    };
+    check();
+    const id = setInterval(check, 5000);
+    return () => clearInterval(id);
+  }, []);
 
   const enrichedNodes = useMemo(() => {
     return nodes.map((n) => ({ ...n, data: { ...n.data, onUpdate, onDelete } }));
@@ -292,10 +391,11 @@ export default function NodeCanvas() {
     if (!connectMenu) return;
 
     const id = getNodeId();
+    const pos = reactFlowInstance.screenToFlowPosition({ x: mouseRef.current.x, y: mouseRef.current.y });
     const newNode = {
       id,
       type: item.type,
-      position: { x: mouseRef.current.x - 280 - 140, y: mouseRef.current.y - 56 - 40 },
+      position: { x: pos.x - 70, y: pos.y - 15 },
       data: {},
     };
     addNode(newNode);
@@ -349,11 +449,22 @@ export default function NodeCanvas() {
     event.preventDefault();
     const nodeType = event.dataTransfer.getData('application/reactflow');
     if (!nodeType) return;
-    addNode({ id: getNodeId(), type: nodeType, position: { x: event.clientX - 280, y: event.clientY - 56 }, data: {} });
+    const pos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    addNode({ id: getNodeId(), type: nodeType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
   }, [addNode]);
 
   return (
     <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', background: '#05010d', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(15,5,30,0.9)', borderRadius: 8, padding: '4px 10px', border: '1px solid rgba(176,38,255,0.2)' }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusLLM ? '#22c55e' : '#ef4444', boxShadow: statusLLM ? '0 0 6px #22c55e' : '0 0 6px #ef4444' }} />
+          <span style={{ fontSize: 10, color: statusLLM ? '#22c55e' : '#ef4444', fontWeight: 600 }}>LLM</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(15,5,30,0.9)', borderRadius: 8, padding: '4px 10px', border: '1px solid rgba(176,38,255,0.2)' }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusComfy ? '#22c55e' : '#ef4444', boxShadow: statusComfy ? '0 0 6px #22c55e' : '0 0 6px #ef4444' }} />
+          <span style={{ fontSize: 10, color: statusComfy ? '#22c55e' : '#ef4444', fontWeight: 600 }}>ComfyUI</span>
+        </div>
+      </div>
       <ReactFlow
         nodes={enrichedNodes}
         edges={edges}
@@ -367,11 +478,12 @@ export default function NodeCanvas() {
         onDragOver={onDragOver}
         onDrop={onDrop}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ style: { stroke: '#b026ff', strokeWidth: 2 }, type: 'smoothstep' }}
         style={{ background: '#05010d' }}
-        deleteKeyCode={null}
+        deleteKeyCode={['Backspace', 'Delete']}
       >
         <Background color="rgba(176,38,255,0.15)" gap={24} size={1} />
         <Controls style={{ borderRadius: 12, border: '1px solid rgba(176,38,255,0.3)', overflow: 'hidden', background: 'rgba(15,5,30,0.95)' }} />
@@ -626,6 +738,7 @@ const QUICK_ADD_SECTIONS = [
       { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '\uD83C\uDFB5', color: '#b026ff' },
       { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '\uD83C\uDFA4', color: '#ec4899' },
       { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
+      { type: 'LLMTextGenNode', label: 'Audio Analyzer', icon: '\uD83D\uDD0D', color: '#10b981' },
       { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
       { type: 'VideoGeneratorNode', label: 'Video Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
       { type: 'ImageGeneratorNode', label: 'Image Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },

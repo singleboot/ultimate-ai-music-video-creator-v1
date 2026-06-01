@@ -1,0 +1,45 @@
+{
+  "1": {
+    "inputs": {
+      "prompt": "Describe the audio in detail: identify the genre, instruments used, beat pattern, tempo, key, mood, and production style. Be specific and technical.",
+      "max_length": 2048,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 0.7,
+      "sampling_mode.top_k": 64,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1.05,
+      "sampling_mode.seed": 0,
+      "thinking": false,
+      "use_default_template": true,
+      "clip": ["3", 0],
+      "audio": ["5", 0]
+    },
+    "class_type": "TextGenerate",
+    "_meta": { "title": "TextGenerate" }
+  },
+  "3": {
+    "inputs": {
+      "clip_name": "gemma4_e4b_it_fp8_scaled.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": { "title": "Load CLIP" }
+  },
+  "4": {
+    "inputs": {
+      "source": ["1", 0]
+    },
+    "class_type": "PreviewAny",
+    "_meta": { "title": "Preview as Text" }
+  },
+  "5": {
+    "inputs": {
+      "audio": "",
+      "audioUI": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": { "title": "Load Audio" }
+  }
+}

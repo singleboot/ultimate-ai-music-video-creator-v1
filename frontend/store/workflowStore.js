@@ -2,6 +2,30 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 const STORAGE_KEY = 'mv-workflows';
+const AUTOSAVE_KEY = 'mv-autosave';
+const TEXT_BACKUP_KEY = 'mv-text-backups';
+
+function safeJsonParse(str) {
+  try { return JSON.parse(str); } catch { return null; }
+}
+
+function safeSerialize(state) {
+  try {
+    return JSON.stringify(state, (key, val) => {
+      if (typeof File !== 'undefined' && val instanceof File) return undefined;
+      if (typeof val === 'function') return undefined;
+      return val;
+    });
+  } catch {
+    return JSON.stringify({ nodes: [], edges: [], savedWorkflows: [] });
+  }
+}
+
+function safeDeserialize(str) {
+  const parsed = safeJsonParse(str);
+  if (!parsed || typeof parsed !== 'object' || !parsed.state) return null;
+  return parsed;
+}
 
 const useWorkflowStore = create(
   persist(
@@ -107,6 +131,66 @@ const useWorkflowStore = create(
         return entry;
       },
 
+      autoSaveWorkflow: () => {
+        const { nodes, edges, workflowName } = get();
+        if (nodes.length === 0) return;
+        try {
+          const snapshot = {
+            nodes: JSON.parse(JSON.stringify(nodes, (k, v) => {
+              if (typeof File !== 'undefined' && v instanceof File) return undefined;
+              if (typeof v === 'function') return undefined;
+              return v;
+            })),
+            edges: JSON.parse(JSON.stringify(edges)),
+            workflowName,
+            savedAt: new Date().toISOString(),
+          };
+          localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot));
+        } catch (e) { /* silent */ }
+      },
+
+      backupTextContent: () => {
+        const { nodes } = get();
+        const texts = {};
+        nodes.forEach((n) => {
+          const d = n.data || {};
+          const id = n.id;
+          if (d.lyrics && typeof d.lyrics === 'string' && d.lyrics.trim()) texts[id + '|lyrics'] = d.lyrics;
+          if (d.prompts) texts[id + '|prompts'] = typeof d.prompts === 'string' ? d.prompts : JSON.stringify(d.prompts);
+          if (d.theme && typeof d.theme === 'string' && d.theme.trim()) texts[id + '|theme'] = d.theme;
+          if (d.prompt && typeof d.prompt === 'string' && d.prompt.trim()) texts[id + '|prompt'] = d.prompt;
+          if (d.text && typeof d.text === 'string' && d.text.trim()) texts[id + '|text'] = d.text;
+        });
+        if (Object.keys(texts).length === 0) return;
+        try {
+          const existing = safeJsonParse(localStorage.getItem(TEXT_BACKUP_KEY)) || { backups: [] };
+          const backups = Array.isArray(existing.backups) ? existing.backups : [];
+          backups.push({ savedAt: new Date().toISOString(), content: texts });
+          if (backups.length > 20) backups.shift();
+          localStorage.setItem(TEXT_BACKUP_KEY, JSON.stringify({ backups }));
+        } catch (e) { /* silent */ }
+      },
+
+      restoreAutoSave: () => {
+        try {
+          const raw = localStorage.getItem(AUTOSAVE_KEY);
+          if (!raw) return null;
+          const data = safeJsonParse(raw);
+          if (!data || !data.nodes || data.nodes.length === 0) return null;
+          return data;
+        } catch { return null; }
+      },
+
+      applyAutoSave: (data) => {
+        if (!data || !data.nodes) return false;
+        set({
+          nodes: data.nodes,
+          edges: data.edges || [],
+          workflowName: data.workflowName || 'Restored Workflow',
+        });
+        return true;
+      },
+
       loadWorkflow: (workflowId) => {
         const { savedWorkflows } = get();
         const wf = savedWorkflows.find((w) => w.id === workflowId);
@@ -143,6 +227,8 @@ const useWorkflowStore = create(
     }),
     {
       name: STORAGE_KEY,
+      serialize: safeSerialize,
+      deserialize: safeDeserialize,
       partialize: (state) => ({
         savedWorkflows: state.savedWorkflows,
         workflowName: state.workflowName,

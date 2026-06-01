@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import useWorkflowStore from '../../store/workflowStore';
+import SettingsPanel from '../settings/SettingsPanel';
 
 export default function WorkflowControls({ onRun }) {
   const workflowName = useWorkflowStore((s) => s.workflowName);
@@ -18,6 +19,7 @@ export default function WorkflowControls({ onRun }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(workflowName);
+  const [showSettings, setShowSettings] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -332,6 +334,13 @@ export default function WorkflowControls({ onRun }) {
       {/* Clear */}
       <ToolbarButton onClick={handleClear} label="Clear" variant="danger" />
 
+      {/* Settings */}
+      <ToolbarButton 
+        onClick={() => setShowSettings(true)} 
+        label="⚙️ Settings" 
+        active={showSettings}
+      />
+
       {/* Run */}
       <button
         onClick={onRun}
@@ -361,6 +370,11 @@ export default function WorkflowControls({ onRun }) {
       >
         {'\u25B6'} Run Workflow
       </button>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <SettingsPanel onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }

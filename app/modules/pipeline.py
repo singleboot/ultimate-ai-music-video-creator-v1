@@ -79,49 +79,86 @@ class PipelineRunner:
         self.input_mgr = input_manager
 
     async def run_text2audio(self, params: dict) -> str:
-        """Generate audio from text description using the ACE workflow.
+        """Generate audio from text description using the ACE text2music workflow.
+
+        Supports both v1 (ace_text2music) and v2 (ace_text2music_v2) workflows.
+        v2 uses separate ttN text nodes for genre/lyrics and EmptyAceStep1.5LatentAudio.
 
         Args:
             params: Dict with keys:
+                - workflow (str): Workflow name (default 'ace_text2music')
                 - genre (str): Music genre description.
-                - lyrics (str, optional): Provided lyrics. If empty and
-                  lyrics_mode='ai', a placeholder is passed for AI generation.
-                - lyrics_mode (str, optional): 'ai' or 'manual' (default 'manual').
+                - lyrics (str, optional): Provided lyrics.
                 - language (str, optional): Language code (default 'en').
                 - bpm (int, optional): Beats per minute.
-                - duration (int, optional): Duration in seconds (default 180).
+                - duration (int, optional): Duration in seconds.
                 - seed (int, optional): Random seed.
+                - time_signature (str, optional): Time signature.
+                - cfg_scale (float, optional)
+                - temperature (float, optional)
+                - top_p (float, optional)
+                - top_k (int, optional)
+                - min_p (float, optional)
+                - keyscale (str, optional)
+                - steps (int, optional): Sampling steps.
+                - sampling_shift (int, optional): ModelSamplingAuraFlow shift.
 
         Returns:
             The ComfyUI prompt_id for the enqueued job.
         """
-        workflow = self.editor.get_workflow("ace_audio_cover")
+        workflow_name = params.get("workflow", "ace_text2music")
+        workflow = self.editor.get_workflow(workflow_name)
         lyrics = params.get("lyrics", "")
 
         if not lyrics.strip():
             genre = params.get("genre", "pop")
             lyrics = f"[{genre} composition]\n"
 
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        silent_path = os.path.join(project_root, "input", "silence_2s.wav")
-        if os.path.exists(silent_path):
-            audio_file = await self.comfy.upload_audio(silent_path)
-        else:
-            audio_file = ""
+        is_v2 = "94" in workflow and workflow["94"].get("class_type") == "TextEncodeAceStepAudio1.5"
+        default_duration = 30 if is_v2 else 180
 
         inject_params = {
-            "audio_file": audio_file,
             "lyrics": lyrics,
+            "genre": params.get("genre", ""),
             "language": params.get("language", "en"),
-            "duration": params.get("duration", 180),
+            "duration": params.get("duration", default_duration),
             "seed": params.get("seed", random.randint(0, 2**32 - 1)),
         }
-        if "bpm" in params:
-            inject_params["bpm"] = params["bpm"]
+
+        # v1-specific: needs audio_file for VHS_LoadAudioUpload
+        if not is_v2:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            silent_path = os.path.join(project_root, "input", "silence_2s.wav")
+            if os.path.exists(silent_path):
+                audio_file = await self.comfy.upload_audio(silent_path)
+            else:
+                audio_file = ""
+            inject_params["audio_file"] = audio_file
+            if "audio_path" in params:
+                inject_params["audio_file"] = await self.comfy.upload_audio(params["audio_path"])
+
+        # Common optional params
+        for key in ("bpm", "cfg_scale", "temperature", "top_p", "top_k", "min_p", "keyscale"):
+            if key in params:
+                inject_params[key] = params[key]
+
+        # v2-specific params
+        if is_v2:
+            if "time_signature" in params:
+                ts = params["time_signature"]
+                # Normalize "4/4", "3/4", "6/8" etc to just the numerator
+                if "/" in str(ts):
+                    ts = str(ts).split("/")[0]
+                if ts in ("2", "3", "4", "6"):
+                    inject_params["time_signature"] = ts
+            if "steps" in params:
+                inject_params["steps"] = params["steps"]
+            if "sampling_shift" in params:
+                inject_params["sampling_shift"] = params["sampling_shift"]
 
         self.editor.inject_ace_text2music_params(workflow, inject_params)
         prompt_id = await self.comfy.enqueue_workflow(workflow)
-        logger.info("Enqueued text2audio job: prompt_id=%s", prompt_id)
+        logger.info("Enqueued text2audio job: prompt_id=%s (workflow=%s)", prompt_id, workflow_name)
         return prompt_id
 
     async def run_generate_lyrics(self, params: dict) -> str:
@@ -202,6 +239,73 @@ class PipelineRunner:
         logger.info("Lyrics generated (%d chars) for job %s", len(raw_text), prompt_id)
         return raw_text
 
+    async def run_llm_audio_analysis(self, params: dict) -> str:
+        """Analyze audio using Gemma4 LLM via the llm_gemma4_text_gen_v1 workflow.
+
+        Uploads the audio to ComfyUI, sets the prompt and audio filename,
+        enqueues the workflow, waits for completion, and extracts the
+        generated text description.
+
+        Args:
+            params: Dict with keys:
+                - audio_path (str): Local path to the audio file to analyze.
+                - prompt (str, optional): Custom analysis prompt.
+                - temperature (float, optional)
+                - top_k (int, optional)
+                - top_p (float, optional)
+                - max_length (int, optional)
+
+        Returns:
+            The generated text description from Gemma4.
+
+        Raises:
+            RuntimeError: If generation fails or returns empty.
+        """
+        audio_path = params.get("audio_path", "")
+        if not audio_path:
+            raise ValueError("audio_path is required for LLM audio analysis")
+
+        filename = await self.comfy.upload_audio(audio_path)
+
+        workflow = self.editor.get_workflow(params.get("workflow", "llm_gemma4_text_gen_v1"))
+        inject_params = {
+            "audio_file": filename,
+            "prompt": params.get("prompt", (
+                "Describe the audio in detail: identify the genre, instruments used, "
+                "beat pattern, tempo, key, mood, and production style. "
+                "Be specific and technical."
+            )),
+        }
+        for key in ("temperature", "top_k", "top_p", "max_length"):
+            if key in params:
+                inject_params[key] = params[key]
+        inject_params["seed"] = params.get("seed", random.randint(0, 2**32 - 1))
+
+        self.editor.inject_llm_text_gen_params(workflow, inject_params)
+        prompt_id = await self.comfy.enqueue_workflow(workflow)
+        logger.info("Enqueued LLM audio analysis job: prompt_id=%s", prompt_id)
+
+        try:
+            history = await self.comfy.wait_for_job(prompt_id, timeout=300)
+        except Exception as e:
+            logger.error("LLM audio analysis job %s failed: %s", prompt_id, e)
+            raise RuntimeError(f"LLM audio analysis failed: {e}")
+
+        outputs = history.get("outputs", {})
+        node_out = outputs.get("4", {})
+        raw_text = node_out.get("text", "") or node_out.get("string", "") or ""
+
+        if isinstance(raw_text, list):
+            raw_text = "\n".join(part for part in raw_text if isinstance(part, str))
+
+        raw_text = raw_text.strip()
+        if not raw_text:
+            logger.warning("LLM audio analysis job %s returned empty text", prompt_id)
+            raise RuntimeError("LLM audio analysis returned empty result")
+
+        logger.info("LLM audio analysis generated (%d chars) for job %s", len(raw_text), prompt_id)
+        return raw_text
+
     async def run_audio_cover(self, params: dict) -> str:
         """Generate an audio cover using the ACE workflow with a source audio file.
 
@@ -227,7 +331,7 @@ class PipelineRunner:
 
         filename = await self.comfy.upload_audio(audio_path)
 
-        workflow = self.editor.get_workflow("ace_audio_cover")
+        workflow = self.editor.get_workflow(params.get("workflow", "ace_audio_cover"))
         inject_params = {
             "audio_file": filename,
             "lyrics": params.get("lyrics", ""),
@@ -264,7 +368,7 @@ class PipelineRunner:
             ValueError: If no TTS workflow is available.
         """
         try:
-            workflow = self.editor.get_workflow("tts")
+            workflow = self.editor.get_workflow(params.get("workflow", "tts"))
         except ValueError:
             workflow = self._build_tts_workflow(params)
 
@@ -294,7 +398,7 @@ class PipelineRunner:
         Returns:
             A ComfyUI API-format workflow dict.
         """
-        workflow = self.editor.get_workflow("tts")
+        workflow = self.editor.get_workflow(params.get("workflow", "tts"))
         text = params.get("text", "")
         voice = params.get("voice", "default")
         prompt_text = (
@@ -328,7 +432,7 @@ class PipelineRunner:
         Returns:
             The ComfyUI prompt_id.
         """
-        workflow = self.editor.get_workflow("prompt_creator")
+        workflow = self.editor.get_workflow(params.get("workflow", "prompt_creator"))
 
         self.editor.inject_prompt_creator_params(
             workflow, params, input_manager=self.input_mgr
@@ -358,7 +462,7 @@ class PipelineRunner:
         Returns:
             The ComfyUI prompt_id.
         """
-        workflow = self.editor.get_workflow("i2v")
+        workflow = self.editor.get_workflow(params.get("workflow", "i2v"))
 
         images = params.get("images", [])
         if isinstance(images, list):
@@ -411,7 +515,7 @@ class PipelineRunner:
         Returns:
             The ComfyUI prompt_id.
         """
-        workflow = self.editor.get_workflow("t2v")
+        workflow = self.editor.get_workflow(params.get("workflow", "t2v"))
 
         if "audio_path" in params:
             ap = params["audio_path"]

@@ -188,19 +188,6 @@
       "title": "VAE Decode Audio"
     }
   },
-  "28": {
-    "inputs": {
-      "audioUI": "",
-      "audio": [
-        "26",
-        0
-      ]
-    },
-    "class_type": "PreviewAudio",
-    "_meta": {
-      "title": "Master Song"
-    }
-  },
   "31": {
     "inputs": {
       "text": [
@@ -276,7 +263,6 @@
   },
   "34": {
     "inputs": {
-      "text_0": "synth-bass, drum-loop, kick-drum, hi-hat, pad-synth, glitch-effect, reverb-heavy, syncopated-rhythm, low-pass-filtered, sub-bass, atmospheric-noise, stereo-spread",
       "text": [
         "32",
         0
@@ -285,91 +271,6 @@
     "class_type": "ShowText|pysssss",
     "_meta": {
       "title": "Show Text 🐍"
-    }
-  },
-  "35": {
-    "inputs": {
-      "chunk_length": 10,
-      "chunk_overlap": 0.1,
-      "chunk_fade_shape": "linear",
-      "audio": [
-        "26",
-        0
-      ]
-    },
-    "class_type": "FL_Audio_Separation",
-    "_meta": {
-      "title": "FL Audio Separation"
-    }
-  },
-  "40": {
-    "inputs": {
-      "filename_prefix": "Aceaudio/bass",
-      "audioUI": "",
-      "audio": [
-        "35",
-        0
-      ]
-    },
-    "class_type": "SaveAudio",
-    "_meta": {
-      "title": "Save Audio (FLAC)"
-    }
-  },
-  "41": {
-    "inputs": {
-      "filename_prefix": "Aceaudio/drums",
-      "audioUI": "",
-      "audio": [
-        "35",
-        1
-      ]
-    },
-    "class_type": "SaveAudio",
-    "_meta": {
-      "title": "Save Audio (FLAC)"
-    }
-  },
-  "42": {
-    "inputs": {
-      "filename_prefix": "Aceaudio/other",
-      "audioUI": "",
-      "audio": [
-        "35",
-        2
-      ]
-    },
-    "class_type": "SaveAudio",
-    "_meta": {
-      "title": "Save Audio (FLAC)"
-    }
-  },
-  "43": {
-    "inputs": {
-      "filename_prefix": "Aceaudio/vocal",
-      "audioUI": "",
-      "audio": [
-        "35",
-        3
-      ]
-    },
-    "class_type": "SaveAudio",
-    "_meta": {
-      "title": "Save Audio (FLAC)"
-    }
-  },
-  "46": {
-    "inputs": {
-      "filename_prefix": "Aceaudio/Master",
-      "audioUI": "",
-      "audio": [
-        "26",
-        0
-      ]
-    },
-    "class_type": "SaveAudio",
-    "_meta": {
-      "title": "Master"
     }
   },
   "49": {
@@ -421,6 +322,21 @@
     "class_type": "PreviewAny",
     "_meta": {
       "title": "Preview as Text"
+    }
+  },
+  "52": {
+    "inputs": {
+      "filename_prefix": "audio/ComfyUI",
+      "quality": "V0",
+      "audioUI": "",
+      "audio": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "SaveAudioMP3",
+    "_meta": {
+      "title": "Save Audio (MP3)"
     }
   }
 }

@@ -2,6 +2,7 @@
 ComfyUI workflow JSONs before enqueuing them."""
 
 import copy
+import glob
 import json
 import logging
 import os
@@ -9,12 +10,79 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Legacy mapping for backward compatibility
 WORKFLOW_NAMES = {
     "ace_audio_cover": "ace_audio_cover.json",
+    "ace_text2music_v2": "ace_text2music_v2.json",
+    "llm_gemma4_text_gen_v1": "llm_gemma4_text_gen_v1.json",
     "prompt_creator": "prompt_creator.json",
     "i2v": "i2v.json",
     "t2v": "t2v.json",
     "tts": "tts.json",
+}
+
+# Category mappings - supports multiple workflows per category
+WORKFLOW_CATEGORIES = {
+    "ace_audio_cover": "cover-audio",
+    "ace_text2music": "text-to-audio",
+    "ace_text2music_v2": "text-to-audio",
+    "llm_gemma4_text_gen_v1": "text-to-audio",
+    "prompt_creator": "text-to-audio",
+    "i2v": "image-to-video",
+    "t2v": "text-to-video",
+    "tts": "text-to-audio",
+}
+
+# Workflow metadata for display and selection
+WORKFLOW_METADATA = {
+    "ace_audio_cover": {
+        "display_name": "ACE Audio Cover",
+        "description": "Generate cover audio from reference audio",
+        "version": "1.0",
+        "default": True,
+    },
+    "ace_text2music": {
+        "display_name": "ACE Text to Music",
+        "description": "Generate music from text description",
+        "version": "1.0",
+        "default": False,
+    },
+    "ace_text2music_v2": {
+        "display_name": "ACE Text2Music v2",
+        "description": "Improved text2music with separate genre/lyrics nodes and turbo model",
+        "version": "2.0",
+        "default": True,
+    },
+    "llm_gemma4_text_gen_v1": {
+        "display_name": "Gemma4 Audio Analysis",
+        "description": "Analyze audio with Gemma4 LLM - genre, instruments, beat, mood",
+        "version": "1.0",
+        "default": True,
+    },
+    "prompt_creator": {
+        "display_name": "Prompt Creator",
+        "description": "Generate enhanced prompts for music generation",
+        "version": "1.0",
+        "default": True,
+    },
+    "i2v": {
+        "display_name": "Image to Video",
+        "description": "Generate video from image",
+        "version": "1.0",
+        "default": True,
+    },
+    "t2v": {
+        "display_name": "Text to Video",
+        "description": "Generate video from text description",
+        "version": "1.0",
+        "default": True,
+    },
+    "tts": {
+        "display_name": "Text to Speech",
+        "description": "Generate speech from text",
+        "version": "1.0",
+        "default": True,
+    },
 }
 
 
@@ -30,16 +98,41 @@ class WorkflowEditor:
         """
         self.workflows_dir = workflows_dir
         self._cache: dict[str, dict] = {}
+        self._filenames: dict[str, str] = {}
+        self._load_all()
 
+    def _load_all(self):
+        """Scan workflows_dir for all .json files and load them into cache."""
+        self._cache.clear()
+        self._filenames.clear()
+
+        # Load from known WORKFLOW_NAMES first (backward compat)
         for name, filename in WORKFLOW_NAMES.items():
-            filepath = os.path.join(workflows_dir, filename)
+            filepath = os.path.join(self.workflows_dir, filename)
             if os.path.exists(filepath):
                 with open(filepath, "r", encoding="utf-8") as f:
                     self._cache[name] = json.load(f)
+                self._filenames[name] = filename
                 logger.info("Loaded workflow '%s' from %s", name, filepath)
             else:
                 logger.warning("Workflow file not found: %s", filepath)
-                self._cache[name] = {}
+
+        # Auto-discover any additional .json files not in WORKFLOW_NAMES
+        for filepath in glob.glob(os.path.join(self.workflows_dir, "*.json")):
+            filename = os.path.basename(filepath)
+            name = os.path.splitext(filename)[0]
+            if name not in self._cache:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    self._cache[name] = json.load(f)
+                self._filenames[name] = filename
+                logger.info("Auto-discovered workflow '%s' from %s", name, filepath)
+
+    def reload(self):
+        """Re-scan the workflows directory and reload all workflows."""
+        self._load_all()
+        names = list(self._cache.keys())
+        logger.info("Reloaded %d workflows: %s", len(names), names)
+        return {"workflows": self.get_workflow_info(), "count": len(names)}
 
     def get_workflow(self, name: str) -> dict:
         """Return a deep copy of a cached workflow by name.
@@ -48,31 +141,61 @@ class WorkflowEditor:
             name: Workflow name (e.g. 'ace_audio_cover', 'prompt_creator', 'i2v', 't2v').
 
         Returns:
-            Deep copy of the workflow dict. Empty dict if not found.
-
-        Raises:
-            ValueError: If the workflow name is unknown.
+            Deep copy of the workflow dict. Returns empty dict if not found.
         """
         if name not in self._cache:
-            raise ValueError(
-                f"Unknown workflow '{name}'. Available: {list(self._cache.keys())}"
-            )
+            logger.error(f"Unknown workflow '{name}'. Available: {list(self._cache.keys())}")
+            return {}
         return copy.deepcopy(self._cache[name])
 
     def get_workflow_info(self) -> list[dict]:
         """Return metadata about all loaded workflows.
 
         Returns:
-            List of dicts with keys: name, filename, node_count.
+            List of dicts with keys: name, filename, node_count, category, metadata.
         """
         info = []
         for name, wf in self._cache.items():
+            metadata = WORKFLOW_METADATA.get(name, {})
             info.append({
                 "name": name,
-                "filename": WORKFLOW_NAMES.get(name),
+                "filename": self._filenames.get(name, f"{name}.json"),
                 "node_count": len(wf),
+                "category": WORKFLOW_CATEGORIES.get(name, "uncategorized"),
+                "display_name": metadata.get("display_name", name),
+                "description": metadata.get("description", ""),
+                "version": metadata.get("version", "1.0"),
+                "default": metadata.get("default", False),
             })
         return info
+
+    def get_workflows_by_category(self, category: str) -> list[dict]:
+        """Return all workflows in a specific category.
+
+        Args:
+            category: Category name (e.g., 'text-to-audio', 'image-to-video').
+
+        Returns:
+            List of workflow info dicts in the specified category.
+        """
+        all_workflows = self.get_workflow_info()
+        return [wf for wf in all_workflows if wf["category"] == category]
+
+    def get_default_workflow(self, category: str) -> Optional[str]:
+        """Return the name of the default workflow for a category.
+
+        Args:
+            category: Category name.
+
+        Returns:
+            Workflow name or None if no default found.
+        """
+        workflows = self.get_workflows_by_category(category)
+        for wf in workflows:
+            if wf.get("default", False):
+                return wf["name"]
+        # If no default, return the first workflow in the category
+        return workflows[0]["name"] if workflows else None
 
     @staticmethod
     def set_node_input(
@@ -96,11 +219,45 @@ class WorkflowEditor:
         if node is None:
             logger.warning("Node '%s' not found in workflow", node_id)
             return workflow
-
         if "inputs" not in node:
             node["inputs"] = {}
-
         node["inputs"][input_name] = value
+        return workflow
+
+    def inject_llm_text_gen_params(self, workflow: dict, params: dict) -> dict:
+        """Inject parameters into the LLM Gemma4 text generation workflow.
+
+        Sets prompt on TextGenerate (node 1), audio filename on LoadAudio (node 5),
+        and optional sampling params on TextGenerate.
+
+        Args:
+            workflow: The LLM text gen workflow dict.
+            params: Dict with keys:
+                - prompt (str): Text prompt for the LLM
+                - audio_file (str): Filename of uploaded audio in ComfyUI input/
+                - temperature (float, optional)
+                - top_k (int, optional)
+                - top_p (float, optional)
+                - max_length (int, optional)
+                - seed (int, optional)
+
+        Returns:
+            The modified workflow dict.
+        """
+        if "prompt" in params:
+            self.set_node_input(workflow, "1", "prompt", params["prompt"])
+        if "audio_file" in params:
+            self.set_node_input(workflow, "5", "audio", params["audio_file"])
+        if "temperature" in params:
+            self.set_node_input(workflow, "1", "sampling_mode.temperature", params["temperature"])
+        if "top_k" in params:
+            self.set_node_input(workflow, "1", "sampling_mode.top_k", params["top_k"])
+        if "top_p" in params:
+            self.set_node_input(workflow, "1", "sampling_mode.top_p", params["top_p"])
+        if "max_length" in params:
+            self.set_node_input(workflow, "1", "max_length", params["max_length"])
+        if "seed" in params:
+            self.set_node_input(workflow, "1", "sampling_mode.seed", params["seed"])
         return workflow
 
     def inject_ace_cover_params(self, workflow: dict, params: dict) -> dict:
@@ -195,40 +352,35 @@ class WorkflowEditor:
             self.set_node_input(workflow, "20", "sampler_name", params["sampler"])
 
     def inject_ace_text2music_params(self, workflow: dict, params: dict) -> dict:
-        """Inject parameters into the ACE workflow for text-to-music mode.
+        """Inject parameters into the simplified ACE text2music workflow.
 
-        Sets task_type="text2music" and provides a silent audio file as the
-        reference for source_latents (required by the Cover Guider node).
+        All node 31 inputs are direct values (no QwenVL / AudioInfo connections).
+        Genre text is injected directly into the `text` field.
 
         Args:
-            workflow: The ACE workflow dict.
+            workflow: The ACE text2music workflow dict.
             params: Dict with keys:
                 - audio_file (str): Uploaded silent audio filename for source_latents
                 - lyrics (str)
+                - genre (str): Genre/style text injected directly into text field
                 - language (str, default "en")
-                - genre (str, optional)
                 - bpm (int, optional)
                 - duration (int, default 180)
                 - seed (int, optional)
-                - time_signature (int, optional)
-                - cfg (float, optional)
-                - temperature (float, optional)
-                - top_p (float, optional)
-                - top_k (int, optional)
-                - steps (int, optional)
-                - sampling_shift (int, optional)
-                - sampler (str, optional)
 
         Returns:
             The modified workflow dict.
         """
+        # Detect v2 workflow by checking for node 94 (TextEncodeAceStepAudio1.5)
+        if "94" in workflow and workflow["94"].get("class_type") == "TextEncodeAceStepAudio1.5":
+            return self.inject_ace_text2music_v2_params(workflow, params)
+
         self.set_node_input(workflow, "31", "task_type", "text2music")
-        self.set_node_input(workflow, "31", "language", params.get("language", "en"))
         self.set_node_input(workflow, "31", "lyrics", params.get("lyrics", ""))
-        self.set_node_input(
-            workflow, "31", "duration", params.get("duration", 180)
-        )
-        self.set_node_input(workflow, "31", "track_name", "None")
+        self.set_node_input(workflow, "31", "language", params.get("language", "en"))
+        self.set_node_input(workflow, "31", "duration", params.get("duration", 180))
+        self.set_node_input(workflow, "31", "track_name", params.get("track_name", "None"))
+        self.set_node_input(workflow, "31", "text", params.get("genre", params.get("text", "")))
 
         if "bpm" in params:
             self.set_node_input(workflow, "31", "bpm", params["bpm"])
@@ -237,12 +389,92 @@ class WorkflowEditor:
 
         self._inject_ace_advanced_params(workflow, params)
 
-        # Keep source_latents connected (required by Cover Guider).
-        # The silent audio uploaded by pipeline.py provides a zero latent.
         if "audio_file" in params:
             self.set_node_input(workflow, "16", "audio", params["audio_file"])
         if "duration" in params:
             self.set_node_input(workflow, "16", "duration", params["duration"])
+
+        return workflow
+
+    def inject_ace_text2music_v2_params(self, workflow: dict, params: dict) -> dict:
+        """Inject parameters into the ACE text2music v2 workflow.
+
+        v2 uses separate ttN text nodes for genre (109) and lyrics (110),
+        TextEncodeAceStepAudio1.5 (94) as the main encode node,
+        EmptyAceStep1.5LatentAudio (98) for duration, KSampler (3) for
+        sampling, and ModelSamplingAuraFlow (78) for shift.
+
+        Args:
+            workflow: The ACE text2music v2 workflow dict.
+            params: Dict with keys:
+                - lyrics (str): Injected into node 110 text field
+                - genre (str): Injected into node 109 text field
+                - language (str, default "en")
+                - bpm (int, optional)
+                - duration (int, default 30)
+                - seed (int, optional)
+                - cfg_scale (float, optional)
+                - temperature (float, optional)
+                - top_p (float, optional)
+                - top_k (int, optional)
+                - min_p (float, optional)
+                - keyscale (str, optional)
+                - steps (int, optional): KSampler steps
+                - sampling_shift (int, optional): ModelSamplingAuraFlow shift
+
+        Returns:
+            The modified workflow dict.
+        """
+        genre = params.get("genre", "")
+        lyrics = params.get("lyrics", "")
+
+        # Inject genre into node 109 (ttN text "genre")
+        self.set_node_input(workflow, "109", "text", genre)
+
+        # Inject lyrics into node 110 (ttN text "lyrics")
+        self.set_node_input(workflow, "110", "text", lyrics)
+
+        # Inject parameters into node 94 (TextEncodeAceStepAudio1.5)
+        encode_node = "94"
+        self.set_node_input(workflow, encode_node, "language", params.get("language", "en"))
+        self.set_node_input(workflow, encode_node, "duration", params.get("duration", 30))
+        self.set_node_input(workflow, encode_node, "timesignature", str(params.get("time_signature", params.get("timesignature", "4"))))
+
+        if "bpm" in params:
+            self.set_node_input(workflow, encode_node, "bpm", params["bpm"])
+        if "seed" in params:
+            self.set_node_input(workflow, encode_node, "seed", params["seed"])
+            self.set_node_input(workflow, "3", "seed", params["seed"])
+        if "keyscale" in params:
+            self.set_node_input(workflow, encode_node, "keyscale", params["keyscale"])
+
+        # Advanced params on node 94
+        if "cfg_scale" in params:
+            self.set_node_input(workflow, encode_node, "cfg_scale", params["cfg_scale"])
+        if "temperature" in params:
+            self.set_node_input(workflow, encode_node, "temperature", params["temperature"])
+        if "top_p" in params:
+            self.set_node_input(workflow, encode_node, "top_p", params["top_p"])
+        if "top_k" in params:
+            top_k = min(max(int(params["top_k"]), 0), 100)
+            self.set_node_input(workflow, encode_node, "top_k", top_k)
+        if "min_p" in params:
+            self.set_node_input(workflow, encode_node, "min_p", params["min_p"])
+
+        # Duration into EmptyAceStep1.5LatentAudio (node 98)
+        self.set_node_input(workflow, "98", "seconds", params.get("duration", 30))
+
+        # KSampler (node 3) steps
+        if "steps" in params:
+            self.set_node_input(workflow, "3", "steps", params["steps"])
+
+        # ModelSamplingAuraFlow (node 78) shift
+        if "sampling_shift" in params:
+            self.set_node_input(workflow, "78", "shift", params["sampling_shift"])
+
+        # KSampler (node 3) cfg — for turbo, cfg=1 is standard
+        if "cfg" in params:
+            self.set_node_input(workflow, "3", "cfg", params["cfg"])
 
         return workflow
 
