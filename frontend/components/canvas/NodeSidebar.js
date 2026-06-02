@@ -5,6 +5,19 @@ import useWorkflowStore from '../../store/workflowStore';
 
 const SECTIONS = [
   {
+    title: 'BUNDLED NODES',
+    nodes: [
+      { type: 'MusicGeneratorNode_bundle', label: 'Music Generator', icon: '\uD83C\uDFB6', color: '#b026ff' },
+      { type: 'PromptCreatorNode_bundle', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
+      { type: 'T2VGeneratorNode_bundle', label: 'T2V Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
+      { type: 'I2VGeneratorNode_bundle', label: 'I2V Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#4f46e5' },
+      { type: 'LyricsGeneratorNode_bundle', label: 'Lyrics Generator', icon: '\u270D\uFE0F', color: '#a855f7' },
+      { type: 'TTSGeneratorNode_bundle', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
+      { type: 'CoverGeneratorNode_bundle', label: 'Cover Generator', icon: '\uD83C\uDFA4', color: '#ec4899' },
+      { type: 'LLMTextGenNode_bundle', label: 'Audio Analyzer', icon: '\uD83D\uDD0D', color: '#10b981' },
+    ],
+  },
+  {
     title: 'INPUTS',
     nodes: [
       { type: 'ThemeNode', label: 'Theme', icon: '\uD83C\uDFAD', color: '#ff3bd4' },

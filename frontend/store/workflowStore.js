@@ -27,6 +27,37 @@ function safeDeserialize(str) {
   return parsed;
 }
 
+const undoStack = [];
+const maxHistory = 40;
+
+function pushToUndo(nodes, edges) {
+  try {
+    const snapshot = {
+      nodes: JSON.parse(JSON.stringify(nodes, (k, v) => {
+        if (typeof File !== 'undefined' && v instanceof File) return undefined;
+        if (typeof v === 'function') return undefined;
+        return v;
+      })),
+      edges: JSON.parse(JSON.stringify(edges)),
+    };
+    
+    if (undoStack.length > 0) {
+      const last = undoStack[undoStack.length - 1];
+      if (JSON.stringify(last.nodes) === JSON.stringify(snapshot.nodes) && 
+          JSON.stringify(last.edges) === JSON.stringify(snapshot.edges)) {
+        return;
+      }
+    }
+
+    if (undoStack.length >= maxHistory) {
+      undoStack.shift();
+    }
+    undoStack.push(snapshot);
+  } catch (e) {
+    // silent fallback
+  }
+}
+
 const useWorkflowStore = create(
   persist(
     (set, get) => ({
@@ -37,7 +68,25 @@ const useWorkflowStore = create(
       projectPath: '',
       savedWorkflows: [],
 
+      undo: () => {
+        if (undoStack.length === 0) return;
+        const prev = undoStack.pop();
+        set({
+          nodes: prev.nodes,
+          edges: prev.edges,
+          selectedNodeId: null,
+        });
+      },
+
+      hasUndoHistory: () => {
+        return undoStack.length > 0;
+      },
+
       onNodesChange: (changes) => {
+        const hasRemove = changes.some((c) => c.type === 'remove');
+        if (hasRemove) {
+          pushToUndo(get().nodes, get().edges);
+        }
         set((state) => {
           const next = applyNodeChanges(state.nodes, changes);
           return { nodes: next };
@@ -45,6 +94,10 @@ const useWorkflowStore = create(
       },
 
       onEdgesChange: (changes) => {
+        const hasStructChange = changes.some((c) => c.type === 'add' || c.type === 'remove');
+        if (hasStructChange) {
+          pushToUndo(get().nodes, get().edges);
+        }
         set((state) => {
           const next = applyEdgeChanges(state.edges, changes);
           return { edges: next };
@@ -52,12 +105,14 @@ const useWorkflowStore = create(
       },
 
       addNode: (node) => {
+        pushToUndo(get().nodes, get().edges);
         set((state) => ({
           nodes: [...state.nodes, node],
         }));
       },
 
       removeNode: (nodeId) => {
+        pushToUndo(get().nodes, get().edges);
         set((state) => ({
           nodes: state.nodes.filter((n) => n.id !== nodeId),
           edges: state.edges.filter(
@@ -70,9 +125,44 @@ const useWorkflowStore = create(
 
       updateNodeData: (nodeId, data) => {
         set((state) => ({
-          nodes: state.nodes.map((n) =>
-            n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
-          ),
+          nodes: state.nodes.map((n) => {
+            if (n.id !== nodeId) return n;
+            
+            let extra = {};
+            if (data && data.hasOwnProperty('collapsed')) {
+              if (data.collapsed) {
+                // Collapsing: save explicit width/height and clear them so React Flow re-measures
+                extra = {
+                  width: undefined,
+                  height: undefined,
+                  data: {
+                    ...n.data,
+                    ...data,
+                    expandedWidth: n.width || n.measured?.width,
+                    expandedHeight: n.height || n.measured?.height
+                  }
+                };
+              } else {
+                // Expanding: restore saved dimensions
+                extra = {
+                  width: n.data.expandedWidth || undefined,
+                  height: n.data.expandedHeight || undefined,
+                  data: {
+                    ...n.data,
+                    ...data
+                  }
+                };
+              }
+            } else {
+              extra = {
+                data: { ...n.data, ...data }
+              };
+            }
+            return {
+              ...n,
+              ...extra
+            };
+          }),
         }));
       },
 
@@ -109,7 +199,7 @@ const useWorkflowStore = create(
         set({ projectPath: path });
       },
 
-      saveWorkflow: () => {
+      saveWorkflow: async () => {
         const { nodes, edges, workflowName, projectPath, savedWorkflows } = get();
         const id = Date.now().toString();
         const entry = {
@@ -120,6 +210,38 @@ const useWorkflowStore = create(
           edges: JSON.parse(JSON.stringify(edges)),
           savedAt: new Date().toISOString(),
         };
+
+        // Save to project folder if projectPath is set
+        if (projectPath) {
+          try {
+            const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const response = await fetch(`${API}/api/projects/sync-assets`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project_path: projectPath,
+                nodes: entry.nodes,
+                edges: entry.edges,
+                workflow_name: workflowName
+              })
+            });
+            if (response.ok) {
+              const resData = await response.json();
+              if (resData.status === 'ok' && resData.nodes) {
+                const currentNodesStr = JSON.stringify(nodes);
+                const newNodesStr = JSON.stringify(resData.nodes);
+                if (currentNodesStr !== newNodesStr) {
+                  set({ nodes: resData.nodes });
+                }
+              }
+            } else {
+              console.error('Failed to sync project assets:', response.statusText);
+            }
+          } catch (e) {
+            console.error('Error syncing project assets:', e);
+          }
+        }
+
         const exists = savedWorkflows.findIndex((w) => w.name === workflowName);
         let next;
         if (exists >= 0) {
@@ -195,6 +317,7 @@ const useWorkflowStore = create(
         const { savedWorkflows } = get();
         const wf = savedWorkflows.find((w) => w.id === workflowId);
         if (!wf) return false;
+        pushToUndo(get().nodes, get().edges);
         set({
           nodes: JSON.parse(JSON.stringify(wf.nodes)),
           edges: JSON.parse(JSON.stringify(wf.edges)),
@@ -205,7 +328,54 @@ const useWorkflowStore = create(
         return true;
       },
 
+      openProjectFolder: async (path) => {
+        if (!path) return null;
+        try {
+          const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+          const response = await fetch(`${API}/api/projects/open-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'ok') {
+              pushToUndo(get().nodes, get().edges);
+              const wf = data.workflow;
+              if (wf) {
+                set({
+                  nodes: wf.nodes || [],
+                  edges: wf.edges || [],
+                  workflowName: wf.name || 'Folder Project',
+                  projectPath: path,
+                  selectedNodeId: null,
+                });
+                return wf;
+              } else {
+                // Initialize clean workflow state associated with this project folder path
+                set({
+                  nodes: [],
+                  edges: [],
+                  workflowName: 'Folder Project',
+                  projectPath: path,
+                  selectedNodeId: null,
+                });
+                // Auto-save the workflow.json file to disk
+                setTimeout(() => {
+                  get().saveWorkflow();
+                }, 200);
+                return { name: 'Folder Project', nodes: [], edges: [] };
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error opening project folder:', e);
+        }
+        return null;
+      },
+
       clearWorkflow: () => {
+        pushToUndo(get().nodes, get().edges);
         set({
           nodes: [],
           edges: [],

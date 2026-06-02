@@ -5,31 +5,28 @@ import NewProjectModal from '../components/layout/NewProjectModal';
 
 export default function HomePage() {
   const [ready, setReady] = useState(false);
-  const [workflows, setWorkflows] = useState([]);
+  const [recentFolders, setRecentFolders] = useState([]);
   const [showNewModal, setShowNewModal] = useState(false);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('mv-workflows');
+      const raw = localStorage.getItem('recent-project-folders');
       if (raw) {
-        const parsed = JSON.parse(raw);
-        setWorkflows(parsed?.state?.savedWorkflows || []);
+        setRecentFolders(JSON.parse(raw) || []);
       }
     } catch {}
     setReady(true);
   }, []);
 
-  const handleDelete = (e, id) => {
+  const handleDelete = (e, pathToRemove) => {
     e.preventDefault();
     e.stopPropagation();
     try {
-      const raw = localStorage.getItem('mv-workflows');
+      const raw = localStorage.getItem('recent-project-folders');
       if (raw) {
-        const parsed = JSON.parse(raw);
-        const list = (parsed?.state?.savedWorkflows || []).filter((w) => w.id !== id);
-        const updated = { ...parsed, state: { ...parsed.state, savedWorkflows: list } };
-        localStorage.setItem('mv-workflows', JSON.stringify(updated));
-        setWorkflows(list);
+        const list = JSON.parse(raw).filter((p) => p !== pathToRemove);
+        localStorage.setItem('recent-project-folders', JSON.stringify(list));
+        setRecentFolders(list);
       }
     } catch {}
   };
@@ -93,6 +90,38 @@ export default function HomePage() {
         >
           New Workflow
         </button>
+
+        <button
+          onClick={() => {
+            const folderPath = window.prompt("Enter project folder path:");
+            if (folderPath && folderPath.trim()) {
+              const pathStr = folderPath.trim();
+              try {
+                const raw = localStorage.getItem('recent-project-folders');
+                const list = raw ? JSON.parse(raw) : [];
+                const updated = [pathStr, ...list.filter(x => x !== pathStr)].slice(0, 8);
+                localStorage.setItem('recent-project-folders', JSON.stringify(updated));
+              } catch {}
+              window.location.href = `/canvas?path=${encodeURIComponent(pathStr)}`;
+            }
+          }}
+          style={{
+            padding: '14px 36px', borderRadius: 14,
+            border: '1px solid rgba(176,38,255,0.4)',
+            background: 'rgba(255,255,255,0.04)',
+            color: '#fff', fontSize: 15, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit',
+            transition: 'background 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(176,38,255,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+          }}
+        >
+          Open Folder
+        </button>
       </div>
 
       {/* Recent projects */}
@@ -105,10 +134,10 @@ export default function HomePage() {
           letterSpacing: '0.1em', textTransform: 'uppercase',
           marginBottom: 14, paddingLeft: 4,
         }}>
-          Recent Projects
+          Recent Project Folders
         </div>
 
-        {workflows.length === 0 ? (
+        {recentFolders.length === 0 ? (
           <div style={{
             padding: '36px 24px', textAlign: 'center',
             borderRadius: 14, border: '1px solid rgba(176,38,255,0.1)',
@@ -116,7 +145,7 @@ export default function HomePage() {
           }}>
             <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}>{'{ }'}</div>
             <div style={{ color: '#6b6880', fontSize: 13 }}>
-              No saved projects yet. Click <strong>New Workflow</strong> to create one.
+              No saved project folders yet. Click <strong>New Workflow</strong> or <strong>Open Folder</strong>.
             </div>
           </div>
         ) : (
@@ -126,51 +155,51 @@ export default function HomePage() {
             background: 'rgba(15,5,30,0.6)',
             backdropFilter: 'blur(12px)',
           }}>
-            {workflows.map((wf, i) => (
+            {recentFolders.map((folderPath, i) => (
               <a
-                key={wf.id}
-                href={`/canvas?load=${wf.id}`}
+                key={folderPath}
+                href={`/canvas?path=${encodeURIComponent(folderPath)}`}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '14px 20px',
-                  borderBottom: i < workflows.length - 1 ? '1px solid rgba(176,38,255,0.08)' : 'none',
+                  borderBottom: i < recentFolders.length - 1 ? '1px solid rgba(176,38,255,0.08)' : 'none',
                   cursor: 'pointer', textDecoration: 'none', color: 'inherit',
                   transition: 'background 0.15s',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(176,38,255,0.06)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
                     background: 'linear-gradient(135deg, rgba(176,38,255,0.15), rgba(99,212,255,0.08))',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 14, flexShrink: 0,
                   }}>
-                    {'\u25B6'}
+                    {'\uD83D\uDCC1'}
                   </div>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {wf.name}
+                      {folderPath.substring(folderPath.lastIndexOf('\\') + 1) || folderPath.substring(folderPath.lastIndexOf('/') + 1) || folderPath}
                     </div>
-                    <div style={{ fontSize: 11, color: '#6b6880', marginTop: 2 }}>
-                      {wf.nodes?.length || 0} nodes
-                      {wf.savedAt ? ` \u00B7 ${new Date(wf.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
-                      {wf.path ? ` \u00B7 ${wf.path}` : ''}
+                    <div style={{ fontSize: 11, color: '#6b6880', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {folderPath}
                     </div>
                   </div>
                 </div>
                 <button
-                  onClick={(e) => handleDelete(e, wf.id)}
+                  onClick={(e) => handleDelete(e, folderPath)}
                   style={{
                     padding: '4px 10px', borderRadius: 6, border: 'none',
                     background: 'rgba(255,50,50,0.1)', color: '#ff5050',
                     fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    fontFamily: 'inherit', opacity: 0, transition: 'opacity 0.15s',
+                    fontFamily: 'inherit', transition: 'background 0.15s',
+                    marginLeft: 12
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.parentElement.parentElement.style.background = 'rgba(176,38,255,0.06)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,50,50,0.2)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,50,50,0.1)'; }}
                 >
-                  Delete
+                  Remove
                 </button>
               </a>
             ))}

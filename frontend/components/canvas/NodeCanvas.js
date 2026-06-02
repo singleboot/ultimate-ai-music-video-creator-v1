@@ -12,8 +12,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import useWorkflowStore from '../../store/workflowStore';
 
-import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode } from '../nodes/inputNodes';
-import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, VideoGeneratorNode, ImageGeneratorNode } from '../nodes/processingNodes';
+import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode } from '../nodes/inputNodes';
+import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, T2VGeneratorNode, I2VGeneratorNode, VideoWorkflowSettingsNode, LTXLoRASettingsNode, ZImageLoRASettingsNode, VideoAdvancedSettingsNode, ImageGeneratorNode, VideoAudioCombinerNode } from '../nodes/processingNodes';
 import { AudioPlayerNode, VideoPlayerNode, ImagePreviewNode, TextPreviewNode } from '../nodes/outputNodes';
 
 function DeleteButtonEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd }) {
@@ -26,9 +26,20 @@ function DeleteButtonEdge({ id, sourceX, sourceY, targetX, targetY, sourcePositi
       onMouseLeave={() => setHover(false)}
       style={{ cursor: 'pointer' }}
     >
-      <path d={edgePath} style={{ ...style, strokeWidth: hover ? 3 : 2 }} markerEnd={markerEnd} fill="none" />
+      {/* Invisible thick path to expand hover/click area */}
+      <path 
+        d={edgePath} 
+        style={{ stroke: 'transparent', strokeWidth: 15, fill: 'none', cursor: 'pointer' }} 
+      />
+      <path d={edgePath} style={{ ...style, strokeWidth: hover ? 4 : 2, transition: 'stroke-width 0.15s' }} markerEnd={markerEnd} fill="none" />
       {hover && (
-        <g onClick={() => useWorkflowStore.getState().onEdgesChange([{ type: 'remove', id }])} style={{ cursor: 'pointer' }}>
+        <g 
+          onClick={(e) => {
+            e.stopPropagation();
+            useWorkflowStore.getState().onEdgesChange([{ type: 'remove', id }]);
+          }} 
+          style={{ cursor: 'pointer' }}
+        >
           <circle cx={labelX} cy={labelY} r={12} fill="transparent" />
           <circle cx={labelX} cy={labelY} r={10} fill="#ef4444" stroke="#fff" strokeWidth={2} style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
           <text x={labelX} y={labelY + 4} textAnchor="middle" fill="#fff" fontSize={12} fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>×</text>
@@ -48,14 +59,25 @@ const nodeTypes = {
   DurationNode,
   AudioFileNode,
   LyricsInputNode,
+  SongSettingsNode,
+  StoryConceptNode,
+  StyleThemeNode,
+  SubjectLocationsNode,
+  GutsSettingsNode,
   LyricsGeneratorNode,
   MusicGeneratorNode,
   CoverGeneratorNode,
   TTSGeneratorNode,
   LLMTextGenNode,
   PromptCreatorNode,
-  VideoGeneratorNode,
+  T2VGeneratorNode,
+  I2VGeneratorNode,
+  VideoWorkflowSettingsNode,
+  LTXLoRASettingsNode,
+  ZImageLoRASettingsNode,
+  VideoAdvancedSettingsNode,
   ImageGeneratorNode,
+  VideoAudioCombinerNode,
   AudioPlayerNode,
   VideoPlayerNode,
   ImagePreviewNode,
@@ -65,12 +87,22 @@ const nodeTypes = {
 const NODE_LABELS = {
   GenreNode: 'Genre', LanguageNode: 'Language', ThemeNode: 'Theme',
   BPMNode: 'BPM', DurationNode: 'Duration', AudioFileNode: 'Audio File',
-  LyricsInputNode: 'Lyrics Input',
+  LyricsInputNode: 'Lyrics Input', SongSettingsNode: 'Song Settings',
+  StoryConceptNode: 'Story Concept Input', StyleThemeNode: 'Style & Theme Input',
+  SubjectLocationsNode: 'Subject & Locations Input',
+  GutsSettingsNode: 'Guts Settings',
   LyricsGeneratorNode: 'Lyrics Generator', MusicGeneratorNode: 'Music Generator',
   CoverGeneratorNode: 'Cover Generator',   TTSGeneratorNode: 'TTS Voiceover',
   LLMTextGenNode: 'Audio Analyzer',
-  PromptCreatorNode: 'Prompt Creator', VideoGeneratorNode: 'Video Generator',
+  PromptCreatorNode: 'Prompt Creator',
+  T2VGeneratorNode: 'T2V Generator',
+  I2VGeneratorNode: 'I2V Generator',
+  VideoWorkflowSettingsNode: 'Video Workflow Settings',
+  LTXLoRASettingsNode: 'LTX LoRA Settings',
+  ZImageLoRASettingsNode: 'Z-Image LoRA Settings',
+  VideoAdvancedSettingsNode: 'Video Advanced Settings',
   ImageGeneratorNode: 'Image Generator',
+  VideoAudioCombinerNode: 'Video & Audio Combiner',
   AudioPlayerNode: 'Audio Player', VideoPlayerNode: 'Video Player',
   ImagePreviewNode: 'Image Preview', TextPreviewNode: 'Text Preview',
 };
@@ -84,13 +116,24 @@ const HANDLE_KEY = {
   DurationNode: { 'output-0': 'duration' },
   AudioFileNode: { 'output-0': 'audio', 'output-1': 'file' },
   LyricsInputNode: { 'output-0': 'lyrics' },
-  LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'duration', 'input-3': 'language', 'output-0': 'lyrics' },
-  MusicGeneratorNode: { 'input-0': 'params', 'output-0': 'audio' },
+  SongSettingsNode: { 'output-0': 'songSettings' },
+  GutsSettingsNode: { 'output-0': 'gutsSettings' },
+  StoryConceptNode: { 'input-0': 'context', 'output-0': 'story_concept' },
+  StyleThemeNode: { 'input-0': 'context', 'output-0': 'theme_style' },
+  SubjectLocationsNode: { 'input-0': 'context', 'output-0': 'subject_scenes' },
+  LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'songSettings', 'output-0': 'lyrics' },
+  MusicGeneratorNode: { 'input-0': 'params', 'input-1': 'instruments', 'input-2': 'settings', 'output-0': 'audio', 'output-1': 'debug' },
   CoverGeneratorNode: { 'input-0': 'audio', 'input-1': 'genre', 'input-2': 'bpm', 'output-0': 'audio' },
   TTSGeneratorNode: { 'input-0': 'text', 'input-1': 'language', 'input-2': 'voice', 'output-0': 'audio' },
   LLMTextGenNode: { 'input-0': 'audio', 'output-0': 'text' },
-  PromptCreatorNode: { 'input-0': 'lyrics', 'input-1': 'theme', 'input-2': 'story', 'output-0': 'prompts' },
-  VideoGeneratorNode: { 'input-0': 'prompts', 'input-1': 'image', 'output-0': 'video' },
+  PromptCreatorNode: { 'input-0': 'params', 'input-1': 'story_concept', 'input-2': 'theme_style', 'input-3': 'subject_scenes', 'input-4': 'guts_settings', 'input-5': 'lyrics', 'output-0': 'prompts' },
+  T2VGeneratorNode: { 'input-0': 'prompts', 'input-1': 'settings', 'input-2': 'loras', 'input-3': 'advanced', 'output-0': 'video', 'output-1': 'combiner' },
+  I2VGeneratorNode: { 'input-0': 'prompts', 'input-1': 'image', 'input-2': 'settings', 'input-3': 'loras', 'input-4': 'z-loras', 'input-5': 'advanced', 'output-0': 'video', 'output-1': 'image', 'output-2': 'combiner' },
+  VideoWorkflowSettingsNode: { 'output-0': 'settings' },
+  LTXLoRASettingsNode: { 'output-0': 'loras' },
+  ZImageLoRASettingsNode: { 'output-0': 'z-loras' },
+  VideoAdvancedSettingsNode: { 'output-0': 'advanced' },
+  VideoAudioCombinerNode: { 'input-0': 'video', 'input-1': 'audio', 'output-0': 'video' },
   ImageGeneratorNode: { 'input-0': 'prompts', 'input-1': 'params', 'output-0': 'image' },
   AudioPlayerNode: { 'input-0': 'audio' },
   VideoPlayerNode: { 'input-0': 'video' },
@@ -110,7 +153,7 @@ const SUGGESTIONS = {
   ],
   theme: [
     { type: 'LyricsGeneratorNode', handle: 'input-0', label: 'Lyrics Generator' },
-    { type: 'PromptCreatorNode', handle: 'input-1', label: 'Prompt Creator' },
+    { type: 'PromptCreatorNode', handle: 'input-0', label: 'Prompt Creator' },
   ],
   bpm: [
     { type: 'CoverGeneratorNode', handle: 'input-2', label: 'Cover Generator' },
@@ -118,34 +161,79 @@ const SUGGESTIONS = {
   duration: [
     { type: 'LyricsGeneratorNode', handle: 'input-2', label: 'Lyrics Generator' },
   ],
+  songSettings: [
+    { type: 'MusicGeneratorNode', handle: 'input-2', label: 'Music Generator' },
+    { type: 'LyricsGeneratorNode', handle: 'input-2', label: 'Lyrics Generator' },
+  ],
   audio: [
-    { type: 'CoverGeneratorNode', handle: 'input-0', label: 'Cover Generator' },
-    { type: 'AudioPlayerNode', handle: 'input-0', label: 'Audio Player' },
+    { type: 'CREATE_FULL_PIPELINE', handle: 'input-0', label: '⚡ Auto-Create Downstream Video Pipeline' },
     { type: 'LLMTextGenNode', handle: 'input-0', label: 'Audio Analyzer' },
+    { type: 'AudioPlayerNode', handle: 'input-0', label: 'Audio Player' },
+    { type: 'CoverGeneratorNode', handle: 'input-0', label: 'Cover Generator' },
+    { type: 'PromptCreatorNode', handle: 'input-0', label: 'Prompt Creator (sync BPM)' },
+    { type: 'VideoAudioCombinerNode', handle: 'input-1', label: 'Video & Audio Combiner' },
+  ],
+  debug: [
+    { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
+  ],
+  gutsSettings: [
+    { type: 'PromptCreatorNode', handle: 'input-4', label: 'Prompt Creator (Settings)' },
   ],
   file: [],
   lyrics: [
     { type: 'MusicGeneratorNode', handle: 'input-0', label: 'Music Generator' },
-    { type: 'PromptCreatorNode', handle: 'input-0', label: 'Prompt Creator' },
+    { type: 'PromptCreatorNode', handle: 'input-5', label: 'Prompt Creator' },
+    { type: 'StoryConceptNode', handle: 'input-0', label: 'Story Concept (Context)' },
   ],
   text: [
     { type: 'TTSGeneratorNode', handle: 'input-0', label: 'TTS Voiceover' },
-    { type: 'MusicGeneratorNode', handle: 'input-0', label: 'Music Generator' },
+    { type: 'MusicGeneratorNode', handle: 'input-1', label: 'Music Generator' },
     { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
   ],
   prompts: [
-    { type: 'VideoGeneratorNode', handle: 'input-0', label: 'Video Generator' },
+    { type: 'T2VGeneratorNode', handle: 'input-0', label: 'T2V Generator' },
+    { type: 'I2VGeneratorNode', handle: 'input-0', label: 'I2V Generator' },
     { type: 'ImageGeneratorNode', handle: 'input-0', label: 'Image Generator' },
   ],
   video: [
     { type: 'VideoPlayerNode', handle: 'input-0', label: 'Video Player' },
+    { type: 'VideoAudioCombinerNode', handle: 'input-0', label: 'Video & Audio Combiner' },
   ],
   image: [
     { type: 'ImagePreviewNode', handle: 'input-0', label: 'Image Preview' },
-    { type: 'VideoGeneratorNode', handle: 'input-1', label: 'Video (I2V)' },
+    { type: 'I2VGeneratorNode', handle: 'input-1', label: 'Video (I2V)' },
+  ],
+  settings: [
+    { type: 'T2VGeneratorNode', handle: 'input-1', label: 'T2V Generator' },
+    { type: 'I2VGeneratorNode', handle: 'input-2', label: 'I2V Generator' },
+  ],
+  loras: [
+    { type: 'T2VGeneratorNode', handle: 'input-2', label: 'T2V Generator' },
+    { type: 'I2VGeneratorNode', handle: 'input-3', label: 'I2V Generator' },
+  ],
+  'z-loras': [
+    { type: 'I2VGeneratorNode', handle: 'input-4', label: 'I2V Generator' },
+  ],
+  advanced: [
+    { type: 'T2VGeneratorNode', handle: 'input-3', label: 'T2V Generator' },
+    { type: 'I2VGeneratorNode', handle: 'input-5', label: 'I2V Generator' },
+  ],
+  combiner: [
+    { type: 'VideoAudioCombinerNode', handle: 'input-0', label: 'Video & Audio Combiner' },
   ],
   'text/lyrics': [
     { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
+  ],
+  story_concept: [
+    { type: 'PromptCreatorNode', handle: 'input-1', label: 'Prompt Creator (Story)' },
+    { type: 'StyleThemeNode', handle: 'input-0', label: 'Style & Theme (Context)' },
+  ],
+  theme_style: [
+    { type: 'PromptCreatorNode', handle: 'input-2', label: 'Prompt Creator (Style)' },
+    { type: 'SubjectLocationsNode', handle: 'input-0', label: 'Subject & Locations (Context)' },
+  ],
+  subject_scenes: [
+    { type: 'PromptCreatorNode', handle: 'input-3', label: 'Prompt Creator (Locations)' },
   ],
 };
 
@@ -181,15 +269,40 @@ const INPUT_SUGGESTIONS = {
     { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
     { type: 'LLMTextGenNode', handle: 'output-0', label: 'Audio Analyzer' },
   ],
+  guts_settings: [
+    { type: 'GutsSettingsNode', handle: 'output-0', label: 'Guts Settings' },
+  ],
   params: [
+    { type: 'GutsSettingsNode', handle: 'output-0', label: 'Guts Settings' },
     { type: 'LyricsGeneratorNode', handle: 'output-0', label: 'Lyrics Generator' },
+    { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
+    { type: 'ThemeNode', handle: 'output-0', label: 'Theme' },
+    { type: 'MusicGeneratorNode', handle: 'output-0', label: 'Music Generator' },
+    { type: 'CoverGeneratorNode', handle: 'output-0', label: 'Cover Generator' },
+  ],
+  settings: [
+    { type: 'SongSettingsNode', handle: 'output-0', label: 'Song Settings' },
+    { type: 'VideoWorkflowSettingsNode', handle: 'output-0', label: 'Video Workflow Settings' },
+  ],
+  loras: [
+    { type: 'LTXLoRASettingsNode', handle: 'output-0', label: 'LTX LoRA Settings' },
+  ],
+  'z-loras': [
+    { type: 'ZImageLoRASettingsNode', handle: 'output-0', label: 'Z-Image LoRA Settings' },
+  ],
+  advanced: [
+    { type: 'VideoAdvancedSettingsNode', handle: 'output-0', label: 'Video Advanced Settings' },
+  ],
+  instruments: [
     { type: 'LLMTextGenNode', handle: 'output-0', label: 'Audio Analyzer' },
   ],
   prompts: [
     { type: 'PromptCreatorNode', handle: 'output-0', label: 'Prompt Creator' },
   ],
   video: [
-    { type: 'VideoGeneratorNode', handle: 'output-0', label: 'Video Generator' },
+    { type: 'T2VGeneratorNode', handle: 'output-0', label: 'T2V Generator' },
+    { type: 'I2VGeneratorNode', handle: 'output-0', label: 'I2V Generator' },
+    { type: 'VideoAudioCombinerNode', handle: 'output-0', label: 'Video & Audio Combiner' },
   ],
   image: [
     { type: 'ImageGeneratorNode', handle: 'output-0', label: 'Image Generator' },
@@ -197,13 +310,481 @@ const INPUT_SUGGESTIONS = {
   story: [
     { type: 'ThemeNode', handle: 'output-0', label: 'Theme' },
   ],
+  story_concept: [
+    { type: 'StoryConceptNode', handle: 'output-0', label: 'Story Concept Override' },
+  ],
+  theme_style: [
+    { type: 'StyleThemeNode', handle: 'output-0', label: 'Style & Theme Override' },
+  ],
+  subject_scenes: [
+    { type: 'SubjectLocationsNode', handle: 'output-0', label: 'Subject & Locations Override' },
+  ],
   voice: [],
+  context: [
+    { type: 'LyricsGeneratorNode', handle: 'output-0', label: 'Lyrics Generator' },
+    { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
+    { type: 'StoryConceptNode', handle: 'output-0', label: 'Story Concept Override' },
+    { type: 'StyleThemeNode', handle: 'output-0', label: 'Style & Theme Override' },
+  ],
 };
 
 let nodeIdCounter = 0;
 function getNodeId() {
   nodeIdCounter += 1;
   return `node_${Date.now()}_${nodeIdCounter}`;
+}
+
+function addPromptCreatorPipeline(addNode, basePos) {
+  const promptId = getNodeId();
+  const storyId = getNodeId();
+  const styleId = getNodeId();
+  const scenesId = getNodeId();
+  const gutsId = getNodeId();
+
+  addNode({ id: promptId, type: 'PromptCreatorNode', position: basePos, data: {} });
+  addNode({ id: storyId, type: 'StoryConceptNode', position: { x: basePos.x - 470, y: basePos.y - 100 }, data: {} });
+  addNode({ id: styleId, type: 'StyleThemeNode', position: { x: basePos.x - 470, y: basePos.y + 70 }, data: {} });
+  addNode({ id: scenesId, type: 'SubjectLocationsNode', position: { x: basePos.x - 470, y: basePos.y + 240 }, data: {} });
+  addNode({ id: gutsId, type: 'GutsSettingsNode', position: { x: basePos.x - 240, y: basePos.y + 70 }, data: {} });
+
+  setTimeout(() => {
+    const edges = [
+      {
+        id: `edge_${Date.now()}_p1`,
+        source: storyId,
+        sourceHandle: 'output-0',
+        target: styleId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_p2`,
+        source: styleId,
+        sourceHandle: 'output-0',
+        target: scenesId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_p3`,
+        source: storyId,
+        sourceHandle: 'output-0',
+        target: promptId,
+        targetHandle: 'input-1',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_p4`,
+        source: styleId,
+        sourceHandle: 'output-0',
+        target: promptId,
+        targetHandle: 'input-2',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_p5`,
+        source: scenesId,
+        sourceHandle: 'output-0',
+        target: promptId,
+        targetHandle: 'input-3',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_p6`,
+        source: gutsId,
+        sourceHandle: 'output-0',
+        target: promptId,
+        targetHandle: 'input-4',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return promptId;
+}
+
+function addVideoGeneratorPipeline(addNode, basePos, type) {
+  const genId = getNodeId();
+  const settingsId = getNodeId();
+  const ltxLoRAId = getNodeId();
+  const zImageLoRAId = getNodeId();
+  const advancedId = getNodeId();
+  const combinerId = getNodeId();
+  const videoPlayId = getNodeId();
+  const isT2V = type === 'T2VGeneratorNode';
+
+  addNode({ id: genId, type, position: basePos, data: {} });
+  addNode({ id: settingsId, type: 'VideoWorkflowSettingsNode', position: { x: basePos.x - 300, y: basePos.y - 250 }, data: {} });
+  addNode({ id: ltxLoRAId, type: 'LTXLoRASettingsNode', position: { x: basePos.x - 300, y: basePos.y - 50 }, data: {} });
+  if (!isT2V) {
+    addNode({ id: zImageLoRAId, type: 'ZImageLoRASettingsNode', position: { x: basePos.x - 300, y: basePos.y + 150 }, data: {} });
+  }
+  addNode({ id: advancedId, type: 'VideoAdvancedSettingsNode', position: { x: basePos.x - 600, y: basePos.y }, data: {} });
+  addNode({ id: combinerId, type: 'VideoAudioCombinerNode', position: { x: basePos.x + 300, y: basePos.y }, data: {} });
+  addNode({ id: videoPlayId, type: 'VideoPlayerNode', position: { x: basePos.x + 600, y: basePos.y }, data: {} });
+
+  let imagePrevId = null;
+  if (!isT2V) {
+    imagePrevId = getNodeId();
+    addNode({ id: imagePrevId, type: 'ImagePreviewNode', position: { x: basePos.x + 300, y: basePos.y + 200 }, data: {} });
+  }
+
+  setTimeout(() => {
+    const settingsTargetHandle = isT2V ? 'input-1' : 'input-2';
+    const lorasTargetHandle = isT2V ? 'input-2' : 'input-3';
+    const zLoRAsTargetHandle = isT2V ? null : 'input-4';
+    const advancedTargetHandle = isT2V ? 'input-3' : 'input-5';
+    const combinerSourceHandle = isT2V ? 'output-1' : 'output-2';
+ 
+    const edges = [
+      {
+        id: `edge_${Date.now()}_v1`,
+        source: settingsId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: settingsTargetHandle,
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_lora`,
+        source: ltxLoRAId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: lorasTargetHandle,
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_v2`,
+        source: advancedId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: advancedTargetHandle,
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_v3`,
+        source: genId,
+        sourceHandle: combinerSourceHandle,
+        target: combinerId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_v5`,
+        source: combinerId,
+        sourceHandle: 'output-0',
+        target: videoPlayId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+ 
+    if (!isT2V) {
+      edges.push({
+        id: `edge_${Date.now()}_zlora`,
+        source: zImageLoRAId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: zLoRAsTargetHandle,
+        type: 'smoothstep',
+        style: { stroke: '#7c3aed', strokeWidth: 2 },
+      });
+    }
+
+    if (imagePrevId) {
+      edges.push({
+        id: `edge_${Date.now()}_v4`,
+        source: genId,
+        sourceHandle: 'output-1',
+        target: imagePrevId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      });
+    }
+
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return genId;
+}
+
+function addMusicGeneratorPipeline(addNode, basePos) {
+  const genId = getNodeId();
+  const genreId = getNodeId();
+  const themeId = getNodeId();
+  const settingsId = getNodeId();
+  const lyricsId = getNodeId();
+  const playerId = getNodeId();
+
+  addNode({ id: genId, type: 'MusicGeneratorNode', position: basePos, data: {} });
+  addNode({ id: genreId, type: 'GenreNode', position: { x: basePos.x - 600, y: basePos.y - 100 }, data: {} });
+  addNode({ id: themeId, type: 'ThemeNode', position: { x: basePos.x - 600, y: basePos.y + 50 }, data: {} });
+  addNode({ id: settingsId, type: 'SongSettingsNode', position: { x: basePos.x - 600, y: basePos.y + 200 }, data: {} });
+  addNode({ id: lyricsId, type: 'LyricsGeneratorNode', position: { x: basePos.x - 300, y: basePos.y }, data: {} });
+  addNode({ id: playerId, type: 'AudioPlayerNode', position: { x: basePos.x + 300, y: basePos.y }, data: {} });
+
+  setTimeout(() => {
+    const edges = [
+      {
+        id: `edge_${Date.now()}_m1`,
+        source: genreId,
+        sourceHandle: 'output-0',
+        target: lyricsId,
+        targetHandle: 'input-1',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_m2`,
+        source: themeId,
+        sourceHandle: 'output-0',
+        target: lyricsId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_m3`,
+        source: settingsId,
+        sourceHandle: 'output-0',
+        target: lyricsId,
+        targetHandle: 'input-2',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_m4`,
+        source: settingsId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-2',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_m5`,
+        source: lyricsId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_m6`,
+        source: genId,
+        sourceHandle: 'output-0',
+        target: playerId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return genId;
+}
+
+function addLyricsGeneratorPipeline(addNode, basePos) {
+  const genId = getNodeId();
+  const themeId = getNodeId();
+  const genreId = getNodeId();
+  const settingsId = getNodeId();
+  const previewId = getNodeId();
+
+  addNode({ id: genId, type: 'LyricsGeneratorNode', position: basePos, data: {} });
+  addNode({ id: themeId, type: 'ThemeNode', position: { x: basePos.x - 300, y: basePos.y - 160 }, data: {} });
+  addNode({ id: genreId, type: 'GenreNode', position: { x: basePos.x - 300, y: basePos.y - 30 }, data: {} });
+  addNode({ id: settingsId, type: 'SongSettingsNode', position: { x: basePos.x - 300, y: basePos.y + 100 }, data: {} });
+  addNode({ id: previewId, type: 'TextPreviewNode', position: { x: basePos.x + 300, y: basePos.y }, data: {} });
+
+  setTimeout(() => {
+    const edges = [
+      {
+        id: `edge_${Date.now()}_l1`,
+        source: themeId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_l2`,
+        source: genreId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-1',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_l3`,
+        source: settingsId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-2',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_l4`,
+        source: genId,
+        sourceHandle: 'output-0',
+        target: previewId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return genId;
+}
+
+function addTTSGeneratorPipeline(addNode, basePos) {
+  const genId = getNodeId();
+  const inputId = getNodeId();
+  const playerId = getNodeId();
+
+  addNode({ id: genId, type: 'TTSGeneratorNode', position: basePos, data: {} });
+  addNode({ id: inputId, type: 'LyricsInputNode', position: { x: basePos.x - 300, y: basePos.y }, data: {} });
+  addNode({ id: playerId, type: 'AudioPlayerNode', position: { x: basePos.x + 300, y: basePos.y }, data: {} });
+
+  setTimeout(() => {
+    const edges = [
+      {
+        id: `edge_${Date.now()}_t1`,
+        source: inputId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_t2`,
+        source: genId,
+        sourceHandle: 'output-0',
+        target: playerId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return genId;
+}
+
+function addCoverGeneratorPipeline(addNode, basePos) {
+  const genId = getNodeId();
+  const fileId = getNodeId();
+  const genreId = getNodeId();
+  const bpmId = getNodeId();
+  const playerId = getNodeId();
+
+  addNode({ id: genId, type: 'CoverGeneratorNode', position: basePos, data: {} });
+  addNode({ id: fileId, type: 'AudioFileNode', position: { x: basePos.x - 300, y: basePos.y - 120 }, data: {} });
+  addNode({ id: genreId, type: 'GenreNode', position: { x: basePos.x - 300, y: basePos.y }, data: {} });
+  addNode({ id: bpmId, type: 'BPMNode', position: { x: basePos.x - 300, y: basePos.y + 120 }, data: {} });
+  addNode({ id: playerId, type: 'AudioPlayerNode', position: { x: basePos.x + 300, y: basePos.y }, data: {} });
+
+  setTimeout(() => {
+    const edges = [
+      {
+        id: `edge_${Date.now()}_c1`,
+        source: fileId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_c2`,
+        source: genreId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-1',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_c3`,
+        source: bpmId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-2',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_c4`,
+        source: genId,
+        sourceHandle: 'output-0',
+        target: playerId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return genId;
+}
+
+function addLLMTextGenPipeline(addNode, basePos) {
+  const genId = getNodeId();
+  const fileId = getNodeId();
+  const previewId = getNodeId();
+
+  addNode({ id: genId, type: 'LLMTextGenNode', position: basePos, data: {} });
+  addNode({ id: fileId, type: 'AudioFileNode', position: { x: basePos.x - 300, y: basePos.y }, data: {} });
+  addNode({ id: previewId, type: 'TextPreviewNode', position: { x: basePos.x + 300, y: basePos.y }, data: {} });
+
+  setTimeout(() => {
+    const edges = [
+      {
+        id: `edge_${Date.now()}_g1`,
+        source: fileId,
+        sourceHandle: 'output-0',
+        target: genId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+      {
+        id: `edge_${Date.now()}_g2`,
+        source: genId,
+        sourceHandle: 'output-0',
+        target: previewId,
+        targetHandle: 'input-0',
+        type: 'smoothstep',
+        style: { stroke: '#b026ff', strokeWidth: 2 },
+      },
+    ];
+    useWorkflowStore.getState().onEdgesChange(edges.map(e => ({ type: 'add', item: e })));
+  }, 50);
+
+  return genId;
 }
 
 export default function NodeCanvas() {
@@ -269,12 +850,14 @@ export default function NodeCanvas() {
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
-  // Restore from autosave if empty
+  // Restore from autosave if empty and not inside a project folder
   useEffect(() => {
     if (nodes.length > 0) return;
-    const restored = useWorkflowStore.getState().restoreAutoSave();
+    const store = useWorkflowStore.getState();
+    if (store.projectPath) return; // Do not restore global autosave inside project folders
+    const restored = store.restoreAutoSave();
     if (restored && restored.nodes.length > 0) {
-      useWorkflowStore.getState().applyAutoSave(restored);
+      store.applyAutoSave(restored);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -390,22 +973,107 @@ export default function NodeCanvas() {
   const handleMenuSuggestionClick = useCallback((item) => {
     if (!connectMenu) return;
 
-    const id = getNodeId();
     const pos = reactFlowInstance.screenToFlowPosition({ x: mouseRef.current.x, y: mouseRef.current.y });
-    const newNode = {
-      id,
-      type: item.type,
-      position: { x: pos.x - 70, y: pos.y - 15 },
-      data: {},
-    };
-    addNode(newNode);
+
+    if (item.type === 'CREATE_FULL_PIPELINE') {
+      const state = useWorkflowStore.getState();
+      
+      // Node IDs
+      const analyzerId = `node_${Date.now()}_analyzer`;
+      const promptId = `node_${Date.now()}_prompt`;
+      const videoGenId = `node_${Date.now()}_videogen`;
+      const videoPlayId = `node_${Date.now()}_videoplay`;
+
+      // 1. Spawn Nodes
+      addNode({ id: analyzerId, type: 'LLMTextGenNode', position: { x: pos.x, y: pos.y }, data: {} });
+      addNode({ id: promptId, type: 'PromptCreatorNode', position: { x: pos.x + 240, y: pos.y + 120 }, data: {} });
+      const t2vGenId = addVideoGeneratorPipeline(addNode, { x: pos.x + 1080, y: pos.y + 120 }, 'T2VGeneratorNode');
+      addNode({ id: videoPlayId, type: 'VideoPlayerNode', position: { x: pos.x + 1380, y: pos.y + 120 }, data: {} });
+
+      // 2. Spawn Connections (using short timeout to let store digest nodes addition)
+      setTimeout(() => {
+        const edgesToAdd = [
+          // Audio source Node -> Analyzer
+          {
+            id: `edge_${Date.now()}_a1`,
+            source: connectMenu.sourceNodeId,
+            sourceHandle: connectMenu.sourceHandle,
+            target: analyzerId,
+            targetHandle: 'input-0',
+            type: 'smoothstep',
+            style: { stroke: '#b026ff', strokeWidth: 2 },
+          },
+          // Analyzer -> Prompt Creator
+          {
+            id: `edge_${Date.now()}_a2`,
+            source: analyzerId,
+            sourceHandle: 'output-0',
+            target: promptId,
+            targetHandle: 'input-0',
+            type: 'smoothstep',
+            style: { stroke: '#b026ff', strokeWidth: 2 },
+          },
+          // Prompt Creator -> Video Generator
+          {
+            id: `edge_${Date.now()}_a3`,
+            source: promptId,
+            sourceHandle: 'output-0',
+            target: t2vGenId,
+            targetHandle: 'input-0',
+            type: 'smoothstep',
+            style: { stroke: '#b026ff', strokeWidth: 2 },
+          },
+          // Video Generator -> Video Player
+          {
+            id: `edge_${Date.now()}_a4`,
+            source: t2vGenId,
+            sourceHandle: 'output-0',
+            target: videoPlayId,
+            targetHandle: 'input-0',
+            type: 'smoothstep',
+            style: { stroke: '#b026ff', strokeWidth: 2 },
+          }
+        ];
+        useWorkflowStore.getState().onEdgesChange(edgesToAdd.map(e => ({ type: 'add', item: e })));
+      }, 50);
+
+      setConnectMenu(null);
+      connectStartRef.current = null;
+      return;
+    }
+
+    let targetNodeId;
+    if (item.type === 'PromptCreatorNode') {
+      targetNodeId = addPromptCreatorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (item.type === 'T2VGeneratorNode' || item.type === 'I2VGeneratorNode') {
+      targetNodeId = addVideoGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 }, item.type);
+    } else if (item.type === 'MusicGeneratorNode') {
+      targetNodeId = addMusicGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (item.type === 'LyricsGeneratorNode') {
+      targetNodeId = addLyricsGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (item.type === 'TTSGeneratorNode') {
+      targetNodeId = addTTSGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (item.type === 'CoverGeneratorNode') {
+      targetNodeId = addCoverGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (item.type === 'LLMTextGenNode') {
+      targetNodeId = addLLMTextGenPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else {
+      targetNodeId = getNodeId();
+      const newNode = {
+        id: targetNodeId,
+        type: item.type,
+        position: { x: pos.x - 70, y: pos.y - 15 },
+        data: {},
+      };
+      addNode(newNode);
+    }
 
     if (connectMenu.type === 'source') {
       const edge = {
         id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         source: connectMenu.sourceNodeId,
         sourceHandle: connectMenu.sourceHandle,
-        target: id,
+        target: targetNodeId,
         targetHandle: item.handle,
         type: 'smoothstep',
         style: { stroke: '#b026ff', strokeWidth: 2 },
@@ -414,7 +1082,7 @@ export default function NodeCanvas() {
     } else {
       const edge = {
         id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        source: id,
+        source: targetNodeId,
         sourceHandle: item.handle,
         target: connectMenu.targetNodeId,
         targetHandle: connectMenu.targetHandle,
@@ -450,7 +1118,29 @@ export default function NodeCanvas() {
     const nodeType = event.dataTransfer.getData('application/reactflow');
     if (!nodeType) return;
     const pos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    addNode({ id: getNodeId(), type: nodeType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
+    
+    if (nodeType.endsWith('_bundle')) {
+      const actualType = nodeType.replace('_bundle', '');
+      if (actualType === 'PromptCreatorNode') {
+        addPromptCreatorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+      } else if (actualType === 'T2VGeneratorNode' || actualType === 'I2VGeneratorNode') {
+        addVideoGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 }, actualType);
+      } else if (actualType === 'MusicGeneratorNode') {
+        addMusicGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+      } else if (actualType === 'LyricsGeneratorNode') {
+        addLyricsGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+      } else if (actualType === 'TTSGeneratorNode') {
+        addTTSGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+      } else if (actualType === 'CoverGeneratorNode') {
+        addCoverGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+      } else if (actualType === 'LLMTextGenNode') {
+        addLLMTextGenPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+      } else {
+        addNode({ id: getNodeId(), type: actualType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
+      }
+    } else {
+      addNode({ id: getNodeId(), type: nodeType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
+    }
   }, [addNode]);
 
   return (
@@ -484,6 +1174,7 @@ export default function NodeCanvas() {
         defaultEdgeOptions={{ style: { stroke: '#b026ff', strokeWidth: 2 }, type: 'smoothstep' }}
         style={{ background: '#05010d' }}
         deleteKeyCode={['Backspace', 'Delete']}
+        selectionKeyCode={['Control', 'Meta']}
       >
         <Background color="rgba(176,38,255,0.15)" gap={24} size={1} />
         <Controls style={{ borderRadius: 12, border: '1px solid rgba(176,38,255,0.3)', overflow: 'hidden', background: 'rgba(15,5,30,0.95)' }} />
@@ -684,7 +1375,14 @@ export default function NodeCanvas() {
                 <div
                   key={n.type}
                   onClick={() => {
-                    addNode({ id: getNodeId(), type: n.type, position: centerPos(nodes.length), data: {} });
+                    const pos = centerPos(nodes.length);
+                    if (n.type === 'PromptCreatorNode') {
+                      addPromptCreatorPipeline(addNode, pos);
+                    } else if (n.type === 'T2VGeneratorNode' || n.type === 'I2VGeneratorNode') {
+                      addVideoGeneratorPipeline(addNode, pos, n.type);
+                    } else {
+                      addNode({ id: getNodeId(), type: n.type, position: pos, data: {} });
+                    }
                     setShowQuickAdd(false);
                   }}
                   style={{
@@ -727,8 +1425,13 @@ const QUICK_ADD_SECTIONS = [
       { type: 'LanguageNode', label: 'Language', icon: '\uD83C\uDF10', color: '#63d4ff' },
       { type: 'BPMNode', label: 'BPM', icon: '\u2699\uFE0F', color: '#f59e0b' },
       { type: 'DurationNode', label: 'Duration', icon: '\u23F1\uFE0F', color: '#22c55e' },
+      { type: 'SongSettingsNode', label: 'Song Settings', icon: '\uD83D\uDCFB', color: '#10b981' },
+      { type: 'GutsSettingsNode', label: 'Guts Settings', icon: '⚙️', color: '#10b981' },
       { type: 'AudioFileNode', label: 'Audio File', icon: '\uD83C\uDFB5', color: '#ec4899' },
       { type: 'LyricsInputNode', label: 'Lyrics', icon: '\uD83D\uDCDD', color: '#a855f7' },
+      { type: 'StoryConceptNode', label: 'Story Concept', icon: '📝', color: '#f59e0b' },
+      { type: 'StyleThemeNode', label: 'Style & Theme', icon: '🎨', color: '#b026ff' },
+      { type: 'SubjectLocationsNode', label: 'Subject & Locations', icon: '📍', color: '#3b82f6' },
     ],
   },
   {
@@ -740,7 +1443,12 @@ const QUICK_ADD_SECTIONS = [
       { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
       { type: 'LLMTextGenNode', label: 'Audio Analyzer', icon: '\uD83D\uDD0D', color: '#10b981' },
       { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
-      { type: 'VideoGeneratorNode', label: 'Video Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
+      { type: 'T2VGeneratorNode', label: 'T2V Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
+      { type: 'I2VGeneratorNode', label: 'I2V Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#4f46e5' },
+      { type: 'VideoWorkflowSettingsNode', label: 'Video Workflow Settings', icon: '⚙️', color: '#312e81' },
+      { type: 'VideoLoRASettingsNode', label: 'Video LoRA Settings', icon: '🧬', color: '#4c1d95' },
+      { type: 'VideoAdvancedSettingsNode', label: 'Video Advanced Settings', icon: '🛠️', color: '#1e1b4b' },
+      { type: 'VideoAudioCombinerNode', label: 'Video & Audio Combiner', icon: '🎬', color: '#10b981' },
       { type: 'ImageGeneratorNode', label: 'Image Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
     ],
   },

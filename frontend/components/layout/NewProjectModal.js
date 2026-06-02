@@ -18,6 +18,14 @@ export default function NewProjectModal({ onClose }) {
   const handleCreate = () => {
     const projectName = name.trim() || 'Untitled Workflow';
     const projectPath = path.trim() || '';
+    if (projectPath) {
+      try {
+        const raw = localStorage.getItem('recent-project-folders');
+        const list = raw ? JSON.parse(raw) : [];
+        const updated = [projectPath, ...list.filter(x => x !== projectPath)].slice(0, 8);
+        localStorage.setItem('recent-project-folders', JSON.stringify(updated));
+      } catch {}
+    }
     router.push(`/canvas?name=${encodeURIComponent(projectName)}&path=${encodeURIComponent(projectPath)}`);
   };
 

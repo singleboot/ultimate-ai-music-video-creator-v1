@@ -2,6 +2,15 @@ import axios from 'axios';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+export const resolveUrl = (url, projectPath) => {
+  if (!url) return '';
+  if (url.startsWith('project://')) {
+    const asset = url.substring('project://'.length);
+    return `${BASE_URL}/api/projects/asset?path=${encodeURIComponent(projectPath)}&asset=${encodeURIComponent(asset)}`;
+  }
+  return url;
+};
+
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 600000,
@@ -22,7 +31,7 @@ export const generateLyrics = async (params) => {
   const { theme, structure, genre, language, duration, seed } = params;
   const langMap = { en: 'English', hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu', pa: 'Punjabi', ur: 'Urdu', kn: 'Kannada', ml: 'Malayalam' };
   const langName = langMap[language] || 'English';
-  const system = 'You are a professional songwriter. Output ONLY the complete lyrics with section tags ([Verse], [Chorus], etc.). No extra commentary.';
+  const system = 'You are a professional songwriter. Output ONLY the raw song lyrics with section tags (like [Verse 1], [Chorus], [Outro]). Do NOT output the theme, genre, title, or any introductory notes, explanations, or commentary.';
   const prompt = `Write original ${genre || 'pop'} song lyrics in ${langName}.
 Structure: ${structure || 'Verse-Chorus'}
 Theme: ${theme || 'general'}
@@ -38,7 +47,39 @@ Variation seed: ${seed || Math.floor(Math.random() * 999999)}`;
     throw new Error(err.error || 'Ollama request failed');
   }
   const data = await res.json();
-  return { lyrics: data.response || data.text || '' };
+  let lyricsText = data.response || data.text || '';
+  
+  // Post-processing to strip metadata headers and introductory lines
+  const cleanLyrics = (text) => {
+    const lines = text.split('\n');
+    const filteredLines = lines.filter(line => {
+      const lower = line.trim().toLowerCase();
+      return !(
+        lower.startsWith('theme:') ||
+        lower.startsWith('genre:') ||
+        lower.startsWith('title:') ||
+        lower.startsWith('language:') ||
+        lower.startsWith('structure:') ||
+        lower.startsWith('seed:') ||
+        lower.startsWith('duration:') ||
+        lower.startsWith('prompt:')
+      );
+    });
+    
+    let cleanText = filteredLines.join('\n').trim();
+    // Strip conversational intros before first bracket
+    const firstTagIndex = cleanText.indexOf('[');
+    if (firstTagIndex > 0) {
+      const prefix = cleanText.substring(0, firstTagIndex).trim();
+      const prefixLines = prefix.split('\n');
+      if (prefixLines.length < 5 && !prefix.includes('\n\n')) {
+        cleanText = cleanText.substring(firstTagIndex);
+      }
+    }
+    return cleanText.trim();
+  };
+
+  return { lyrics: cleanLyrics(lyricsText) };
 };
 
 export const generateText2Audio = (params, audioFile) => {
@@ -83,5 +124,11 @@ export const sendChat = (message, history = []) =>
 
 export const getHealth = () =>
   api.get('/api/health').then((r) => r.data);
+
+export const combineVideoAudio = (video_url, audio_url) =>
+  api.post('/api/generate/combine', { video_url, audio_url }).then((r) => r.data);
+
+export const fetchLoras = () =>
+  api.get('/api/models/loras').then((r) => r.data);
 
 export default api;

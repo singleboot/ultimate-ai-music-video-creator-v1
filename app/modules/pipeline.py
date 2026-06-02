@@ -106,7 +106,7 @@ class PipelineRunner:
         Returns:
             The ComfyUI prompt_id for the enqueued job.
         """
-        workflow_name = params.get("workflow", "ace_text2music")
+        workflow_name = params.get("workflow", "ace_text2music_v2")
         workflow = self.editor.get_workflow(workflow_name)
         lyrics = params.get("lyrics", "")
 
@@ -212,7 +212,7 @@ class PipelineRunner:
         logger.info("Enqueued lyrics generation job: prompt_id=%s", prompt_id)
 
         try:
-            history = await self.comfy.wait_for_job(prompt_id, timeout=120)
+            history = await self.comfy.wait_for_job(prompt_id, timeout=1800)
         except Exception as e:
             logger.error("Lyrics job %s failed: %s", prompt_id, e)
             raise RuntimeError(f"Lyrics generation failed: {e}")
@@ -239,12 +239,94 @@ class PipelineRunner:
         logger.info("Lyrics generated (%d chars) for job %s", len(raw_text), prompt_id)
         return raw_text
 
-    async def run_llm_audio_analysis(self, params: dict) -> str:
+    async def run_enhance_text(self, params: dict) -> str:
+        """Enhance and expand user's prompt text using Gemma via ComfyUI.
+
+        Args:
+            params: Dict with keys:
+                - text (str): The short input text to enhance.
+                - type (str): 'story_concept', 'theme_style', or 'subject_scenes'.
+
+        Returns:
+            The enhanced text.
+        """
+        text = params.get("text", "").strip()
+        text_type = params.get("type", "story_concept")
+        context = params.get("context", "").strip()
+        seed = random.randint(0, 2**32 - 1)
+
+        if not text and not context:
+            return ""
+
+        if not text and context:
+            text = f"Generate {text_type.replace('_', ' ')} based on the connected context."
+
+        if text_type == "story_concept":
+            instruction = (
+                "You are an expert creative director and screenwriter. "
+                "Enhance and expand the following short music video narrative/story concept. "
+                "Add rich visual storytelling details, pacing details, and key actions. "
+                "Do not include any introductory text, explanations, or meta-commentary. "
+                "Return only the enhanced story concept."
+            )
+        elif text_type == "theme_style":
+            instruction = (
+                "You are an expert cinematographer and colorist. "
+                "Enhance and expand the following visual style, theme, and lighting description for a music video. "
+                "Provide detailed guidance on visual aesthetics, color palette, camera motion, framing, lighting, and mood. "
+                "Do not include any introductory text, explanations, or meta-commentary. "
+                "Return only the enhanced visual style."
+            )
+        else: # subject_scenes
+            instruction = (
+                "You are an expert cinematographer. "
+                "Enhance and expand the following description of subjects and scenes/locations for a music video. "
+                "Provide details on character appearance, actions, exact environment settings, lighting, and layout. "
+                "Do not include any introductory text, explanations, or meta-commentary. "
+                "Return only the enhanced subjects and locations."
+            )
+
+        context_str = f"Guiding Context / Preceding Concept:\n{context}\n\n" if context else ""
+
+        prompt_text = (
+            f"<bos><start_of_turn>user\n"
+            f"{instruction}\n\n"
+            f"{context_str}"
+            f"Input Description: {text}\n\n"
+            f"<end_of_turn>\n<start_of_turn>model\n"
+        )
+
+        max_length = int(params.get("max_length", 1024))
+        workflow = _build_lyrics_workflow()
+        workflow["2"]["inputs"]["prompt"] = prompt_text
+        workflow["2"]["inputs"]["sampling_mode.seed"] = seed
+        workflow["2"]["inputs"]["max_length"] = max_length
+
+        prompt_id = await self.comfy.enqueue_workflow(workflow)
+        logger.info("Enqueued text enhancement job: prompt_id=%s, type=%s", prompt_id, text_type)
+
+        try:
+            history = await self.comfy.wait_for_job(prompt_id, timeout=1800)
+        except Exception as e:
+            logger.error("Text enhancement job %s failed: %s", prompt_id, e)
+            raise RuntimeError(f"Text enhancement failed: {e}")
+
+        outputs = history.get("outputs", {})
+        node_out = outputs.get("3", {})
+        raw_text = node_out.get("text", "") or node_out.get("string", "") or ""
+
+        if isinstance(raw_text, list):
+            raw_text = "\n".join(part for part in raw_text if isinstance(part, str))
+
+        raw_text = raw_text.strip()
+        return raw_text
+
+    async def run_llm_audio_analysis(self, params: dict) -> dict:
         """Analyze audio using Gemma4 LLM via the llm_gemma4_text_gen_v1 workflow.
 
         Uploads the audio to ComfyUI, sets the prompt and audio filename,
-        enqueues the workflow, waits for completion, and extracts the
-        generated text description.
+        enqueues the workflow, waits for completion, and extracts structured
+        JSON with genre, instruments, bpm, keyscale, and mood.
 
         Args:
             params: Dict with keys:
@@ -256,7 +338,13 @@ class PipelineRunner:
                 - max_length (int, optional)
 
         Returns:
-            The generated text description from Gemma4.
+            Dict with keys:
+                - text (str): Full prose description for preview
+                - genre (str): Detected genre
+                - instruments (str): Detected instruments
+                - bpm (int): Detected BPM
+                - keyscale (str): Detected key/scale
+                - mood (str): Detected mood
 
         Raises:
             RuntimeError: If generation fails or returns empty.
@@ -265,16 +353,46 @@ class PipelineRunner:
         if not audio_path:
             raise ValueError("audio_path is required for LLM audio analysis")
 
+        # Resolve HTTP output URL back to actual local filesystem path if generated internally
+        if audio_path.startswith("http://") or audio_path.startswith("https://"):
+            from urllib.parse import urlparse
+            path_part = urlparse(audio_path).path  # e.g., /output/audio/ComfyUI_00006_.mp3
+            if path_part.startswith("/output/"):
+                # COMFYUI_OUTPUT_DIR is the root mount point for /output/
+                # Remove the /output/ prefix and join with actual comfyui output folder
+                rel_path = path_part.replace("/output/", "", 1)
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+                comfyui_output_dir = os.environ.get("COMFYUI_OUTPUT_DIR", os.path.join(project_root, "comfyui", "output"))
+                resolved_local_path = os.path.join(comfyui_output_dir, rel_path)
+                if os.path.exists(resolved_local_path):
+                    audio_path = resolved_local_path
+                else:
+                    # Try joining relative to project root / comfyui folder directly
+                    resolved_local_path_alt = os.path.join(project_root, "comfyui", rel_path)
+                    if os.path.exists(resolved_local_path_alt):
+                        audio_path = resolved_local_path_alt
+
         filename = await self.comfy.upload_audio(audio_path)
 
         workflow = self.editor.get_workflow(params.get("workflow", "llm_gemma4_text_gen_v1"))
+
+        # Structured JSON prompt for reliable parsing
+        default_prompt = (
+            "Analyze this audio track and output ONLY valid JSON with exactly these keys:\n"
+            "genre, instruments, bpm, keyscale, mood, description.\n\n"
+            "Rules:\n"
+            "- genre: a short genre name (e.g. 'Bollywood Dance', 'Punjabi Pop')\n"
+            "- instruments: comma-separated list of primary instruments\n"
+            "- bpm: integer beats per minute (estimate if unsure)\n"
+            "- keyscale: musical key and scale (e.g. 'C major', 'A minor')\n"
+            "- mood: one-word or short phrase describing the mood\n"
+            "- description: a 2-3 sentence prose summary\n\n"
+            "Output ONLY the JSON object. No markdown, no commentary."
+        )
+
         inject_params = {
             "audio_file": filename,
-            "prompt": params.get("prompt", (
-                "Describe the audio in detail: identify the genre, instruments used, "
-                "beat pattern, tempo, key, mood, and production style. "
-                "Be specific and technical."
-            )),
+            "prompt": params.get("prompt", default_prompt),
         }
         for key in ("temperature", "top_k", "top_p", "max_length"):
             if key in params:
@@ -286,7 +404,7 @@ class PipelineRunner:
         logger.info("Enqueued LLM audio analysis job: prompt_id=%s", prompt_id)
 
         try:
-            history = await self.comfy.wait_for_job(prompt_id, timeout=300)
+            history = await self.comfy.wait_for_job(prompt_id, timeout=1800)
         except Exception as e:
             logger.error("LLM audio analysis job %s failed: %s", prompt_id, e)
             raise RuntimeError(f"LLM audio analysis failed: {e}")
@@ -303,8 +421,78 @@ class PipelineRunner:
             logger.warning("LLM audio analysis job %s returned empty text", prompt_id)
             raise RuntimeError("LLM audio analysis returned empty result")
 
-        logger.info("LLM audio analysis generated (%d chars) for job %s", len(raw_text), prompt_id)
-        return raw_text
+        # Try to parse JSON from the response
+        result = self._parse_llm_audio_json(raw_text)
+        logger.info("LLM audio analysis parsed for job %s: genre=%s bpm=%s key=%s",
+                    prompt_id, result.get("genre"), result.get("bpm"), result.get("keyscale"))
+        return result
+
+    @staticmethod
+    def _parse_llm_audio_json(raw_text: str) -> dict:
+        """Parse LLM audio analysis output, extracting JSON if present.
+
+        Falls back to regex extraction if JSON parsing fails.
+
+        Args:
+            raw_text: Raw LLM output text.
+
+        Returns:
+            Dict with text, genre, instruments, bpm, keyscale, mood.
+        """
+        import re
+
+        text = raw_text
+        genre = ""
+        instruments = ""
+        bpm = 0
+        keyscale = ""
+        mood = ""
+
+        # Try to find and parse JSON block
+        json_match = re.search(r'\{[\s\S]*?\}', text)
+        if json_match:
+            try:
+                parsed = json.loads(json_match.group())
+                genre = str(parsed.get("genre", "")).strip()
+                instruments = str(parsed.get("instruments", "")).strip()
+                bpm = int(parsed.get("bpm", 0)) if str(parsed.get("bpm", "0")).isdigit() else 0
+                keyscale = str(parsed.get("keyscale", "")).strip()
+                mood = str(parsed.get("mood", "")).strip()
+                if parsed.get("description"):
+                    text = str(parsed.get("description")).strip()
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Fallback: regex extraction from prose
+        if not genre:
+            g = re.search(r'[Gg]enre[:\s]+([^\n]+)', text)
+            if g:
+                genre = g.group(1).strip()
+        if not instruments:
+            i = re.search(r'[Ii]nstruments?[:\s]+([^\n]+)', text)
+            if i:
+                instruments = i.group(1).strip()
+        if not bpm:
+            b = re.search(r'([Bb][Pp][Mm]|[Tt]empo)[:\s]+(\d+)', text)
+            if b:
+                bpm = int(b.group(2))
+        if not keyscale:
+            k = re.search(r'([Kk]ey|[Ss]cale)[:\s]+([A-G][#b]?\s*(major|minor))', text)
+            if k:
+                keyscale = k.group(2).strip()
+        if not mood:
+            m = re.search(r'[Mm]ood[:\s]+([^\n]+)', text)
+            if m:
+                mood = m.group(1).strip()
+
+        return {
+            "text": text,
+            "genre": genre,
+            "instruments": instruments,
+            "bpm": bpm,
+            "keyscale": keyscale,
+            "mood": mood,
+        }
 
     async def run_audio_cover(self, params: dict) -> str:
         """Generate an audio cover using the ACE workflow with a source audio file.
@@ -450,6 +638,8 @@ class PipelineRunner:
         Args:
             params: Dict with keys:
                 - images (list of str): Local paths to input images.
+                - prompt (str, optional): Text prompt for the video.
+                - prompts (str, optional): Alias for prompt.
                 - audio_path (str, optional): Pre-uploaded audio filename or
                   local path to upload.
                 - fps (int, optional): Frames per second (default 24).
@@ -457,7 +647,18 @@ class PipelineRunner:
                 - height (int, optional): Video height (default 720).
                 - seed (int, optional): Random seed.
                 - model (str, optional): UNet model name.
+                - ltx_gguf (str, optional): GGUF UNet model.
+                - gemma_clip (str, optional): CLIP text encoder model.
+                - text_projection (str, optional): Text projection model.
+                - video_vae (str, optional): Video VAE model.
+                - audio_vae (str, optional): Audio VAE model.
+                - latent_upscaler (str, optional): Latent upscaler model.
+                - supergemma_llm (str, optional): SuperGemma LLM model file.
+                - z_image_turbo (str, optional): Z-image UNet model.
+                - z_image_clip (str, optional): Z-image CLIP model.
+                - z_image_vae (str, optional): Z-image VAE model.
                 - lora_1..lora_20 + strength_1..strength_20 (optional).
+                - concepts_file (str, optional): Pre-generated concepts file.
 
         Returns:
             The ComfyUI prompt_id.
@@ -502,6 +703,7 @@ class PipelineRunner:
         Args:
             params: Dict with keys:
                 - prompt (str): Text prompt describing the video.
+                - prompts (str, optional): Alias for prompt.
                 - audio_path (str, optional): Pre-uploaded audio filename or
                   local path to upload.
                 - fps (int, optional): Frames per second (default 24).
@@ -511,6 +713,14 @@ class PipelineRunner:
                 - camera_motion (str, optional): Camera motion description.
                 - character_motion (str, optional): Character motion description.
                 - model (str, optional): UNet model name.
+                - ltx_gguf (str, optional): GGUF UNet model.
+                - gemma_clip (str, optional): CLIP text encoder model.
+                - text_projection (str, optional): Text projection model.
+                - video_vae (str, optional): Video VAE model.
+                - audio_vae (str, optional): Audio VAE model.
+                - latent_upscaler (str, optional): Latent upscaler model.
+                - supergemma_llm (str, optional): SuperGemma LLM model file.
+                - concepts_file (str, optional): Pre-generated concepts file.
 
         Returns:
             The ComfyUI prompt_id.
@@ -617,7 +827,7 @@ class PipelineRunner:
         logger.info("Enqueued chat generation job: prompt_id=%s", prompt_id)
 
         try:
-            history = await self.comfy.wait_for_job(prompt_id, timeout=300)
+            history = await self.comfy.wait_for_job(prompt_id, timeout=1800)
         except Exception as e:
             logger.error("Chat job %s failed: %s", prompt_id, e)
             raise RuntimeError(f"Chat generation failed: {e}")
@@ -746,6 +956,22 @@ class PipelineRunner:
                     prompt_history, comfy_output_dir
                 )
                 logger.info("Prompt creator outputs: %s", prompt_paths)
+
+                # Inject generated concepts filename into video params
+                concepts_file = None
+                for path in prompt_paths:
+                    if path.lower().endswith((".txt", ".json")):
+                        concepts_file = os.path.basename(path)
+                        break
+                
+                if not concepts_file:
+                    fallback_path = os.path.join(comfy_output_dir, "VRGDG_TEMP", "TextFiles", "ConceptPrompts", "ConceptPrompts.txt")
+                    if os.path.exists(fallback_path):
+                        concepts_file = "ConceptPrompts.txt"
+
+                if concepts_file:
+                    video_params["concepts_file"] = concepts_file
+                    logger.info("Injected concepts_file into video_params: %s", concepts_file)
         except Exception as e:
             logger.warning("Step 2 (prompt creator) skipped or failed: %s", e)
 
@@ -763,7 +989,7 @@ class PipelineRunner:
             )
             video_history = await self.comfy.wait_for_job(
                 video_prompt_id,
-                timeout=video_params.get("timeout", 1200),
+                timeout=video_params.get("timeout", 3600),
             )
             video_paths = self._extract_output_paths(
                 video_history, comfy_output_dir

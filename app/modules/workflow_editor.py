@@ -445,7 +445,7 @@ class WorkflowEditor:
         if "seed" in params:
             self.set_node_input(workflow, encode_node, "seed", params["seed"])
             self.set_node_input(workflow, "3", "seed", params["seed"])
-        if "keyscale" in params:
+        if params.get("keyscale"):
             self.set_node_input(workflow, encode_node, "keyscale", params["keyscale"])
 
         # Advanced params on node 94
@@ -500,8 +500,50 @@ class WorkflowEditor:
         Returns:
             The modified workflow dict.
         """
-        lang = params.get("language", "english")
+        lang = params.get("language", params.get("whisper_language", "auto"))
         self.set_node_input(workflow, "28:79", "language", lang)
+
+        # 1. Manual Lyrics Extractor node 28:79 (FPS, max duration)
+        if "fps" in params:
+            self.set_node_input(workflow, "28:79", "fps", int(params["fps"]))
+        if "max_duration" in params:
+            self.set_node_input(workflow, "28:79", "scene_duration_seconds", int(params["max_duration"]))
+
+        # 2. Beat-Aligned Scene Durations node 28:80 (min/max durations, bias, preset)
+        if "min_duration" in params:
+            self.set_node_input(workflow, "28:80", "min_duration", int(params["min_duration"]))
+        if "max_duration" in params:
+            self.set_node_input(workflow, "28:80", "max_duration", int(params["max_duration"]))
+        if "bias" in params:
+            self.set_node_input(workflow, "28:80", "bias", float(params["bias"]))
+        if "duration_preset" in params:
+            self.set_node_input(workflow, "28:80", "duration_preset", params["duration_preset"])
+
+        # 3. ComfySwitchNode 28:933 (use SRT switch)
+        if "use_srt" in params:
+            # Map "ON"/"OFF" or boolean to ComfySwitchNode switch input
+            use_srt_bool = True
+            if str(params["use_srt"]).upper() in ("OFF", "FALSE", "0"):
+                use_srt_bool = False
+            self.set_node_input(workflow, "28:933", "switch", use_srt_bool)
+
+        # 4. SuperGemma nodes 28:945 and 28:909 (LLM model file)
+        if "llm_model" in params and params["llm_model"]:
+            model_file = params["llm_model"]
+            self.set_node_input(workflow, "28:945", "model_file", model_file)
+            self.set_node_input(workflow, "28:909", "model_file", model_file)
+
+        # 5. Direct injection into templates and chat nodes to bypass ComfyUI caching
+        if "story_concept" in params:
+            self.set_node_input(workflow, "28:910", "section_2_text", params["story_concept"])
+        if "theme_style" in params:
+            self.set_node_input(workflow, "28:910", "section_3_text", params["theme_style"])
+            self.set_node_input(workflow, "28:849", "section_5_text", params["theme_style"])
+        if "subject_scenes" in params:
+            self.set_node_input(workflow, "28:910", "section_4_text", params["subject_scenes"])
+            self.set_node_input(workflow, "28:945", "user_input", params["subject_scenes"])
+        if "lyrics" in params:
+            self.set_node_input(workflow, "28:849", "section_2_text", params["lyrics"])
 
         if input_manager:
             if "lyrics" in params:
@@ -593,6 +635,16 @@ class WorkflowEditor:
                 - tail_loss_frames (int, optional)
                 - pre_frames (int, optional)
                 - loras (list[dict], optional) — array of {file, strength}
+                - ltx_gguf (str, optional) — GGUF UNet model
+                - gemma_clip (str, optional) — CLIP/text encoder model
+                - text_projection (str, optional) — Text projection model
+                - video_vae (str, optional) — Video VAE model
+                - audio_vae (str, optional) — Audio VAE model
+                - latent_upscaler (str, optional) — Latent upscaler model
+                - supergemma_llm (str, optional) — SuperGemma LLM model file
+                - z_image_turbo (str, optional) — Z-image UNet model (i2v only)
+                - z_image_clip (str, optional) — Z-image CLIP model (i2v only)
+                - z_image_vae (str, optional) — Z-image VAE model (i2v only)
 
         Returns:
             The modified workflow dict.
@@ -610,11 +662,54 @@ class WorkflowEditor:
             self.set_node_input(
                 workflow, "736:449", "value", params["seed"]
             )
+            if "218:252" in workflow:
+                self.set_node_input(
+                    workflow, "218:252", "value", params["seed"]
+                )
 
         if "model" in params:
             self.set_node_input(
                 workflow, "271:215", "unet_name", params["model"]
             )
+
+        # Model selection parameters
+        if "ltx_gguf" in params:
+            self.set_node_input(workflow, "271:215", "unet_name", params["ltx_gguf"])
+        if "gemma_clip" in params:
+            self.set_node_input(workflow, "271:216", "clip_name1", params["gemma_clip"])
+        if "text_projection" in params:
+            self.set_node_input(workflow, "271:216", "clip_name2", params["text_projection"])
+        if "video_vae" in params:
+            self.set_node_input(workflow, "271:256", "vae_name", params["video_vae"])
+        if "audio_vae" in params:
+            self.set_node_input(workflow, "271:254", "vae_name", params["audio_vae"])
+        if "latent_upscaler" in params:
+            self.set_node_input(workflow, "271:211", "model_name", params["latent_upscaler"])
+
+        # SuperGemma LLM model — node IDs differ between t2v ("853") and i2v ("805"/"811")
+        if "supergemma_llm" in params:
+            for node_id in ("853", "805", "811"):
+                if workflow.get(node_id):
+                    self.set_node_input(workflow, node_id, "model_file", params["supergemma_llm"])
+
+        # Z-image pipeline models (i2v only — nodes 797:16, 797:18, 797:17)
+        if "z_image_turbo" in params:
+            self.set_node_input(workflow, "797:16", "unet_name", params["z_image_turbo"])
+        if "z_image_clip" in params:
+            self.set_node_input(workflow, "797:18", "clip_name", params["z_image_clip"])
+        if "z_image_vae" in params:
+            self.set_node_input(workflow, "797:17", "vae_name", params["z_image_vae"])
+
+        # Prompt text — accepts both "prompt" and "prompts" keys
+        prompt_text = params.get("prompt") or params.get("prompts") or ""
+        if prompt_text and isinstance(prompt_text, str):
+            if params.get("lora_trigger_word") and params.get("lora_trigger_text"):
+                prompt_text += f", {params['lora_trigger_text']}"
+            if params.get("z_lora_trigger_word") and params.get("z_lora_trigger_text"):
+                prompt_text += f", {params['z_lora_trigger_text']}"
+            for node_id in ("853", "805", "811"):
+                if workflow.get(node_id):
+                    self.set_node_input(workflow, node_id, "user_input", prompt_text)
 
         if "audio_path" in params:
             audio_node = workflow.get("736:691")
@@ -623,8 +718,39 @@ class WorkflowEditor:
                     workflow, "736:691", "audio_file", params["audio_path"]
                 )
 
+        if "concepts_file" in params and params["concepts_file"]:
+            if str(params["concepts_file"]).lower().endswith(".srt"):
+                self.set_node_input(workflow, "837", "switch", False)
+                self.set_node_input(workflow, "838", "value", params["concepts_file"])
+
+        # Inject Remake/Redo parameters into the custom split node "218:287"
+        if "use_remake_folder" in params:
+            val = params["use_remake_folder"]
+            if isinstance(val, str):
+                val = val.upper() in ("ON", "TRUE")
+            self.set_node_input(workflow, "218:287", "use_remake_folder", val)
+        if "redo_prompt_number" in params:
+            try:
+                self.set_node_input(workflow, "218:287", "redo_prompt_number", int(params["redo_prompt_number"]))
+            except (ValueError, TypeError):
+                pass
+        if "overwrite_mode" in params:
+            self.set_node_input(workflow, "218:287", "overwrite_mode", params["overwrite_mode"])
+
         lora_node = workflow.get("842")
         if lora_node:
+            if "use_custom_loras" in params:
+                val = params["use_custom_loras"]
+                if isinstance(val, str):
+                    val = val.upper() == "ON"
+                self.set_node_input(workflow, "842", "use_custom_loras", val)
+            if "lora_count" in params:
+                self.set_node_input(workflow, "842", "lora_count", int(params["lora_count"]))
+            if "ltx_two_pass_mode" in params:
+                val = params["ltx_two_pass_mode"]
+                if isinstance(val, str):
+                    val = val.upper() == "ON"
+                self.set_node_input(workflow, "842", "ltx_two_pass_mode", val)
             for i in range(1, 21):
                 lora_key = f"lora_{i}"
                 strength_key = f"strength_{i}"
@@ -632,7 +758,26 @@ class WorkflowEditor:
                     self.set_node_input(workflow, "842", lora_key, params[lora_key])
                 if strength_key in params:
                     self.set_node_input(
-                        workflow, "842", strength_key, params[strength_key]
+                        workflow, "842", strength_key, float(params[strength_key])
+                    )
+
+        z_lora_node = workflow.get("797:847")
+        if z_lora_node:
+            if "use_z_image_loras" in params:
+                val = params["use_z_image_loras"]
+                if isinstance(val, str):
+                    val = val.upper() == "ON"
+                self.set_node_input(workflow, "797:847", "use_custom_loras", val)
+            if "z_image_lora_count" in params:
+                self.set_node_input(workflow, "797:847", "lora_count", int(params["z_image_lora_count"]))
+            for i in range(1, 21):
+                z_lora_key = f"z_image_lora_{i}"
+                z_strength_key = f"z_image_strength_{i}"
+                if z_lora_key in params:
+                    self.set_node_input(workflow, "797:847", f"lora_{i}", params[z_lora_key])
+                if z_strength_key in params:
+                    self.set_node_input(
+                        workflow, "797:847", f"strength_{i}", float(params[z_strength_key])
                     )
 
         self._inject_loras_from_array(workflow, params)
@@ -667,11 +812,34 @@ class WorkflowEditor:
                 params.get("character_motion", "")
             )
 
-        if "prompt" in params:
+        # Motion picker advanced settings
+        if camera_node:
+            for key, node_key in [
+                ("camera_motion_preset", "preset_1"),
+                ("camera_motion_sel_mode", "selection_mode_1"),
+                ("camera_motion_items", "pick_count_1"),
+                ("camera_motion_template", "two_item_template_1"),
+                ("character_motion_preset", "preset_2"),
+                ("character_motion_sel_mode", "selection_mode_2"),
+                ("character_motion_items", "pick_count_2"),
+                ("character_motion_template", "two_item_template_2"),
+            ]:
+                if key in params:
+                    self.set_node_input(workflow, "887", node_key, params[key])
+
+            # Raw motion lists -> refill preset items from multiline text
+            if "camera_motion_list" in params:
+                self.set_node_input(workflow, "887", "text_1", params["camera_motion_list"])
+            if "character_motion_list" in params:
+                self.set_node_input(workflow, "887", "text_2", params["character_motion_list"])
+
+        # Prompt text for T2V — accept both "prompt" and "prompts" keys
+        t2v_prompt = params.get("prompt") or params.get("prompts") or ""
+        if t2v_prompt and isinstance(t2v_prompt, str):
             gemma_node = workflow.get("853")
             if gemma_node:
                 self.set_node_input(
-                    workflow, "853", "user_input", params["prompt"]
+                    workflow, "853", "user_input", t2v_prompt
                 )
 
         return workflow

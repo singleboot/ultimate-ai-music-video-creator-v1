@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -30,9 +31,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 WORKFLOWS_DIR = os.path.join(PROJECT_ROOT, "workflows")
 COMFYUI_HOST = os.environ.get("COMFYUI_HOST", "127.0.0.1")
 COMFYUI_PORT = int(os.environ.get("COMFYUI_PORT", "8188"))
+comfy_in_default = os.path.join(PROJECT_ROOT, "comfyui", "input")
 COMFYUI_INPUT_DIR = os.environ.get(
     "COMFYUI_INPUT_DIR",
-    os.path.join(PROJECT_ROOT, "input"),
+    comfy_in_default if os.path.exists(comfy_in_default) else os.path.join(PROJECT_ROOT, "input"),
 )
 COMFYUI_OUTPUT_DIR = os.environ.get(
     "COMFYUI_OUTPUT_DIR",
@@ -107,6 +109,14 @@ class LyricsGenerateRequest(BaseModel):
     seed: int = -1
 
 
+class EnhanceTextRequest(BaseModel):
+    """Request to enhance and expand user prompt text using Gemma LLM."""
+    text: str
+    type: str = "story_concept"  # "story_concept", "theme_style", or "subject_scenes"
+    context: Optional[str] = ""
+    max_length: Optional[int] = 1024
+
+
 class LLMAudioAnalysisRequest(BaseModel):
     """Request to analyze audio with Gemma4 LLM."""
     audio_path: str = ""
@@ -144,12 +154,31 @@ class OpenProjectRequest(BaseModel):
     path: str
 
 
+class SaveWorkflowRequest(BaseModel):
+    """Request to save project workflow."""
+    project_path: str
+    workflow: dict
+
+
+class OpenFolderRequest(BaseModel):
+    """Request to open a project folder workflow."""
+    path: str
+
+
+class SyncAssetsRequest(BaseModel):
+    """Request to sync generated files to the project folder."""
+    project_path: str
+    nodes: list
+    edges: list
+    workflow_name: Optional[str] = ""
+
+
 class UpdateSettingsRequest(BaseModel):
     """Request to update app settings."""
     settings: dict[str, Any]
 
 
-PROJECT_DIRS = ["music", "images", "videos", "lyrics"]
+PROJECT_DIRS = ["music", "images", "videos", "lyrics", "srt"]
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +243,33 @@ def _save_settings(data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
+class SaveInputsRequest(BaseModel):
+    """Request to save project input text files."""
+    lyrics: Optional[str] = None
+    theme_style: Optional[str] = None
+    story_concept: Optional[str] = None
+    subject_scenes: Optional[str] = None
+
+
+@app.post("/api/projects/save-inputs")
+async def save_inputs(req: SaveInputsRequest) -> dict:
+    """Save raw story concept, theme style, lyrics, and subject/scene lists directly to disk."""
+    try:
+        saved_paths = {}
+        if req.lyrics is not None:
+            saved_paths["lyrics"] = input_manager.write_lyrics(req.lyrics)
+        if req.theme_style is not None:
+            saved_paths["theme_style"] = input_manager.write_theme_style(req.theme_style)
+        if req.story_concept is not None:
+            saved_paths["story_concept"] = input_manager.write_story_concept(req.story_concept)
+        if req.subject_scenes is not None:
+            saved_paths["subject_scenes"] = input_manager.write_subject_scenes(req.subject_scenes)
+        return {"status": "ok", "saved_files": saved_paths}
+    except Exception as e:
+        logger.error("Failed to save input files: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/generate/lyrics")
 async def generate_lyrics(req: LyricsGenerateRequest) -> dict:
     """Generate lyrics text using Gemma via ComfyUI.
@@ -232,6 +288,17 @@ async def generate_lyrics(req: LyricsGenerateRequest) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/generate/enhance-text")
+async def enhance_text(req: EnhanceTextRequest) -> dict:
+    """Enhance and expand style, story concept, or subject/scene prompts using LLM."""
+    try:
+        enhanced = await pipeline_runner.run_enhance_text(req.model_dump())
+        return {"status": "ok", "enhanced": enhanced}
+    except Exception as e:
+        logger.error("Text enhancement failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/generate/llm-audio-analysis")
 async def generate_llm_audio_analysis(req: LLMAudioAnalysisRequest) -> dict:
     """Analyze audio using Gemma4 LLM via ComfyUI.
@@ -243,11 +310,151 @@ async def generate_llm_audio_analysis(req: LLMAudioAnalysisRequest) -> dict:
         raise HTTPException(status_code=400, detail="audio_path is required")
     params = req.model_dump()
     try:
-        text = await pipeline_runner.run_llm_audio_analysis(params)
-        return {"status": "ok", "text": text}
+        result = await pipeline_runner.run_llm_audio_analysis(params)
+        return {"status": "ok", **result}
     except Exception as e:
         logger.error("LLM audio analysis failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _copy_assets_to_project(params: dict, urls: list[str]) -> list[str]:
+    project_path = params.get("project_path") or params.get("projectPath")
+    if not project_path:
+        return urls
+    import shutil
+    import urllib.parse
+    
+    copied_urls = []
+    for url in urls:
+        if not url:
+            copied_urls.append(url)
+            continue
+        # Resolve url path to local filesystem path
+        local_path = None
+        if url.startswith("http://") or url.startswith("https://"):
+            parsed = urllib.parse.urlparse(url)
+            path_part = parsed.path
+            if path_part.startswith("/output/"):
+                rel = path_part[len("/output/"):]
+                local_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+            elif path_part.startswith("/input/"):
+                rel = path_part[len("/input/"):]
+                local_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+        elif url.startswith("/output/"):
+            rel = url[len("/output/"):]
+            local_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+        elif url.startswith("/input/"):
+            rel = url[len("/input/"):]
+            local_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+        else:
+            p_out = os.path.join(OUTPUT_DIR, url)
+            if os.path.exists(p_out):
+                local_path = p_out
+            else:
+                p_in = os.path.join(COMFYUI_INPUT_DIR, url)
+                if os.path.exists(p_in):
+                    local_path = p_in
+
+        if local_path and os.path.exists(local_path):
+            ext = os.path.splitext(local_path)[1].lower()
+            if ext in (".mp4", ".webm", ".mov", ".avi", ".gif"):
+                subdir = "videos"
+            elif ext in (".wav", ".mp3", ".flac", ".ogg", ".m4a"):
+                subdir = "music"
+            elif ext in (".png", ".jpg", ".jpeg", ".webp"):
+                subdir = "images"
+            elif ext in (".txt", ".json"):
+                subdir = "lyrics"
+            elif ext in (".srt",):
+                subdir = "srt"
+            else:
+                copied_urls.append(url)
+                continue
+            
+            target_dir = os.path.join(project_path, subdir)
+            os.makedirs(target_dir, exist_ok=True)
+            try:
+                filename = os.path.basename(local_path)
+                dest = os.path.join(target_dir, filename)
+                shutil.copy2(local_path, dest)
+                logger.info("Copied generated asset %s to project path %s", local_path, dest)
+                copied_urls.append(f"project://{subdir}/{filename}")
+            except Exception as e:
+                logger.error("Failed to copy generated asset to project: %s", e)
+                copied_urls.append(url)
+        else:
+            copied_urls.append(url)
+    return copied_urls
+
+
+class CombineRequest(BaseModel):
+    video_url: str
+    audio_url: str
+    project_path: Optional[str] = None
+
+
+@app.post("/api/generate/combine")
+async def generate_combine(req: CombineRequest):
+    """Combine video and audio using ffmpeg."""
+    import urllib.parse
+    import subprocess
+    import shutil
+    import time
+    
+    def resolve_path(url: str) -> str:
+        if url.startswith("http://") or url.startswith("https://"):
+            parsed = urllib.parse.urlparse(url)
+            path_part = parsed.path
+            if path_part.startswith("/output/"):
+                rel = path_part[len("/output/"):]
+                return os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+            if path_part.startswith("/input/"):
+                rel = path_part[len("/input/"):]
+                return os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+        if os.path.isabs(url):
+            return url
+        p_out = os.path.join(OUTPUT_DIR, url)
+        if os.path.exists(p_out):
+            return p_out
+        p_in = os.path.join(COMFYUI_INPUT_DIR, url)
+        if os.path.exists(p_in):
+            return p_in
+        return url
+
+    v_path = resolve_path(req.video_url)
+    a_path = resolve_path(req.audio_url)
+    
+    if not os.path.exists(v_path):
+        raise HTTPException(status_code=400, detail=f"Video file not found: {v_path}")
+    if not os.path.exists(a_path):
+        raise HTTPException(status_code=400, detail=f"Audio file not found: {a_path}")
+        
+    stem, ext = os.path.splitext(os.path.basename(v_path))
+    out_name = f"{stem}_combined_{int(time.time())}{ext}"
+    out_path = os.path.join(OUTPUT_DIR, out_name)
+    
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(status_code=500, detail="ffmpeg not found on server system")
+        
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", v_path,
+        "-i", a_path,
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        out_path
+    ]
+    
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        logger.error("FFmpeg merge failed: %s", proc.stderr)
+        raise HTTPException(status_code=500, detail=f"FFmpeg error: {proc.stderr}")
+        
+    out_url = f"/output/{out_name}"
+    if req.project_path:
+        _copy_assets_to_project({"project_path": req.project_path}, [out_url])
+    return {"status": "ok", "url": out_url, "video_url": out_url}
 
 
 def _suggest_actions(message: str, history: list[dict]) -> list[str]:
@@ -418,6 +625,155 @@ async def get_current_project() -> dict:
     return {"project": None}
 
 
+@app.post("/api/projects/save-workflow")
+async def save_project_workflow(req: SaveWorkflowRequest) -> dict:
+    if not req.project_path:
+        raise HTTPException(status_code=400, detail="Missing project path")
+    
+    workflow_path = os.path.join(req.project_path, "workflow.json")
+    try:
+        os.makedirs(req.project_path, exist_ok=True)
+        for subdir in PROJECT_DIRS:
+            os.makedirs(os.path.join(req.project_path, subdir), exist_ok=True)
+        
+        with open(workflow_path, "w", encoding="utf-8") as f:
+            json.dump(req.workflow, f, indent=2)
+        return {"status": "ok", "message": "Workflow saved successfully"}
+    except Exception as e:
+        logger.error("Failed to save workflow: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/projects/open-folder")
+async def open_project_folder(req: OpenFolderRequest) -> dict:
+    if not req.path:
+        raise HTTPException(status_code=400, detail="Missing folder path")
+    
+    workflow_path = os.path.join(req.path, "workflow.json")
+    if not os.path.exists(workflow_path):
+        return {"status": "ok", "workflow": None}
+    try:
+        with open(workflow_path, "r", encoding="utf-8") as f:
+            workflow = json.load(f)
+        return {"status": "ok", "workflow": workflow}
+    except Exception as e:
+        logger.error("Failed to load workflow: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/projects/reveal")
+async def reveal_project_folder(req: OpenFolderRequest) -> dict:
+    if not req.path:
+        raise HTTPException(status_code=400, detail="Missing path")
+    try:
+        path = os.path.realpath(req.path)
+        if os.path.isdir(path):
+            # Open file explorer on Windows
+            os.startfile(path)
+            return {"status": "ok"}
+        else:
+            raise HTTPException(status_code=400, detail="Path is not a directory")
+    except Exception as e:
+        logger.error("Failed to reveal project folder: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/projects/asset")
+async def get_project_asset(path: str, asset: str):
+    if not path or not asset:
+        raise HTTPException(status_code=400, detail="Missing path or asset parameter")
+    path = os.path.realpath(path)
+    full_path = os.path.realpath(os.path.join(path, asset))
+    if not full_path.startswith(path):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(full_path)
+
+
+@app.post("/api/projects/sync-assets")
+async def sync_assets(req: SyncAssetsRequest) -> dict:
+    project_path = req.project_path
+    if not project_path:
+        raise HTTPException(status_code=400, detail="Missing project path")
+        
+    for subdir in PROJECT_DIRS:
+        os.makedirs(os.path.join(project_path, subdir), exist_ok=True)
+        
+    updated_nodes = []
+    for node in req.nodes:
+        node_id = node.get("id")
+        node_type = node.get("type")
+        data = node.get("data", {})
+        
+        # 1. Audio URLs (Music, Cover, TTS)
+        if node_type in ("MusicGeneratorNode", "CoverGeneratorNode", "TTSGeneratorNode"):
+            audio_url = data.get("audioUrl")
+            if audio_url and not audio_url.startswith("project://"):
+                copied = _copy_assets_to_project({"project_path": project_path}, [audio_url])
+                if copied and copied[0].startswith("project://"):
+                    data["audioUrl"] = copied[0]
+        
+        # 2. Lyrics text
+        if node_type == "LyricsGeneratorNode":
+            lyrics_text = data.get("lyrics")
+            if lyrics_text:
+                lyrics_dir = os.path.join(project_path, "lyrics")
+                os.makedirs(lyrics_dir, exist_ok=True)
+                with open(os.path.join(lyrics_dir, "full_lyrics.txt"), "w", encoding="utf-8") as f:
+                    f.write(lyrics_text)
+                    
+        # 3. Prompt creator texts
+        if node_type == "PromptCreatorNode":
+            for text_key, filename in [("story_concept", "storyconcept.txt"), ("theme_style", "themestyle.txt"), ("subject_scenes", "subjectsandscenes.txt"), ("lyrics", "full_lyrics.txt")]:
+                text_val = data.get(text_key)
+                if text_val:
+                    lyrics_dir = os.path.join(project_path, "lyrics")
+                    os.makedirs(lyrics_dir, exist_ok=True)
+                    with open(os.path.join(lyrics_dir, filename), "w", encoding="utf-8") as f:
+                        f.write(text_val)
+                        
+        # 4. Video URLs
+        if node_type in ("VideoPlayerNode", "VideoAudioCombinerNode", "T2VGeneratorNode", "I2VGeneratorNode"):
+            video_url = data.get("videoUrl") or data.get("video")
+            if video_url and not video_url.startswith("project://"):
+                copied = _copy_assets_to_project({"project_path": project_path}, [video_url])
+                if copied and copied[0].startswith("project://"):
+                    if data.get("videoUrl") is not None:
+                        data["videoUrl"] = copied[0]
+                    if data.get("video") is not None:
+                        data["video"] = copied[0]
+                        
+        # 5. Image URLs
+        if node_type in ("ImagePreviewNode", "ImageGeneratorNode"):
+            image_url = data.get("imageUrl") or data.get("image")
+            if image_url and not image_url.startswith("project://"):
+                copied = _copy_assets_to_project({"project_path": project_path}, [image_url])
+                if copied and copied[0].startswith("project://"):
+                    if data.get("imageUrl") is not None:
+                        data["imageUrl"] = copied[0]
+                    if data.get("image") is not None:
+                        data["image"] = copied[0]
+                        
+        node["data"] = data
+        updated_nodes.append(node)
+        
+    workflow_path = os.path.join(project_path, "workflow.json")
+    try:
+        workflow_data = {
+            "nodes": updated_nodes,
+            "edges": req.edges,
+            "workflowName": req.workflow_name or "Project Workflow"
+        }
+        with open(workflow_path, "w", encoding="utf-8") as f:
+            json.dump(workflow_data, f, indent=2)
+    except Exception as e:
+        logger.error("Sync: Failed to save updated workflow: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to save workflow: {e}")
+        
+    return {"status": "ok", "nodes": updated_nodes}
+
+
 @app.get("/api/status")
 async def get_status() -> dict:
     """Return ComfyUI queue status."""
@@ -428,12 +784,35 @@ async def get_status() -> dict:
         raise HTTPException(status_code=503, detail=f"ComfyUI unreachable: {e}")
 
 
+@app.post("/api/debug/inject/{workflow_name}")
+async def debug_inject(workflow_name: str, body: dict) -> dict:
+    """Return the workflow JSON after parameter injection (does NOT enqueue)."""
+    params = body.get("params", {}) if isinstance(body, dict) else {}
+    try:
+        workflow = pipeline_runner.editor.get_workflow(workflow_name)
+    except ValueError:
+        return {"status": "error", "detail": f"Workflow '{workflow_name}' not found"}
+    pipeline_runner.editor.inject_ace_text2music_params(workflow, params)
+    # summarize what was set
+    summary = {}
+    for nid, node in workflow.items():
+        if "inputs" in node:
+            summary[nid] = {k: v for k, v in node["inputs"].items() if k != "seed"}
+    return {"status": "ok", "workflow_name": workflow_name, "params_received": params, "node_inputs": summary}
+
+
 @app.post("/api/generate")
 async def generate(
     request: Request,
-    type: str = Form(None),
-    audio_file: UploadFile = File(None),
-    image_files: list[UploadFile] = File(None),
+    type: Optional[str] = Form(None),
+    audio_file: Optional[UploadFile] = File(None),
+    image_files: Optional[list[UploadFile]] = File(None),
+    prompt: Optional[str] = Form(None),
+    temperature: Optional[str] = Form(None),
+    top_k: Optional[str] = Form(None),
+    top_p: Optional[str] = Form(None),
+    max_length: Optional[str] = Form(None),
+    seed: Optional[str] = Form(None),
 ) -> dict:
     """Submit a generation job.
 
@@ -446,7 +825,6 @@ async def generate(
     params: dict[str, Any] = {}
     gen_type: Optional[str] = None
 
-    # Try to parse JSON body
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         try:
@@ -461,23 +839,15 @@ async def generate(
                         params[k] = v
         except Exception:
             pass
-    elif "multipart/form-data" in content_type:
-        try:
-            async with request.form() as form:
-                gen_type = form.get("type") or type
-                for key in form:
-                    if key in ("type", "mode", "audio_file", "image_files"):
-                        continue
-                    val = form[key]
-                    if isinstance(val, str):
-                        try:
-                            params[key] = json.loads(val)
-                        except (json.JSONDecodeError, TypeError):
-                            params[key] = val
-        except Exception:
-            pass
-    elif type is not None:
+    else:
         gen_type = type
+        for key in ("prompt", "temperature", "top_k", "top_p", "max_length", "seed"):
+            val = locals().get(key)
+            if val is not None:
+                try:
+                    params[key] = json.loads(val)
+                except (json.JSONDecodeError, TypeError):
+                    params[key] = val
 
     if gen_type is None:
         raise HTTPException(
@@ -515,43 +885,203 @@ async def generate(
 
         if gen_type == "text2audio":
             prompt_id = await pipeline_runner.run_text2audio(params)
-            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 300))
+            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 1800))
             output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".wav", ".mp3", ".flac", ".ogg", ".m4a")))
+            output_urls = _copy_assets_to_project(params, output_urls)
             return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls, "url": (output_urls + [""])[0], "audio_url": output_urls[0] if output_urls else None}
 
         elif gen_type == "audio_cover":
             prompt_id = await pipeline_runner.run_audio_cover(params)
-            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 300))
+            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 1800))
             output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".wav", ".mp3", ".flac", ".ogg", ".m4a")))
+            output_urls = _copy_assets_to_project(params, output_urls)
             return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls, "url": (output_urls + [""])[0], "audio_url": output_urls[0] if output_urls else None}
 
         elif gen_type == "tts":
             prompt_id = await pipeline_runner.run_tts(params)
-            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 300))
+            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 1800))
             output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".wav", ".mp3", ".flac", ".ogg", ".m4a")))
+            output_urls = _copy_assets_to_project(params, output_urls)
             return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls, "url": (output_urls + [""])[0], "audio_url": output_urls[0] if output_urls else None}
 
         elif gen_type == "llm_audio_analysis":
-            text = await pipeline_runner.run_llm_audio_analysis(params)
-            return {"status": "completed", "text": text}
+            result = await pipeline_runner.run_llm_audio_analysis(params)
+            return {"status": "completed", **result}
 
         elif gen_type == "prompt_creator":
             prompt_id = await pipeline_runner.run_prompt_creator(params)
-            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 300))
-            output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".txt", ".json")))
+            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 1800))
+            
+            # 1. Try to extract output files from ComfyUI job history
+            job_paths = pipeline_runner._extract_output_paths(history, COMFYUI_OUTPUT_DIR)
+            output_urls = []
+            for path in job_paths:
+                if path.lower().endswith((".txt", ".json")):
+                    rel = os.path.relpath(path, COMFYUI_OUTPUT_DIR).replace("\\", "/")
+                    output_urls.append(f"/output/{rel}")
+            
+            # 2. Try scanning the output directory with a safety buffer
+            if not output_urls:
+                output_urls = _scan_output_dir(OUTPUT_DIR, start_time - 300.0, (".txt", ".json"))
+            
+            # 3. Direct path fallback if ComfyUI caching or skew skipped writing a new file
+            if not output_urls:
+                fallback_rel = "VRGDG_TEMP/TextFiles/ConceptPrompts/ConceptPrompts.txt"
+                fallback_path = os.path.join(OUTPUT_DIR, "VRGDG_TEMP", "TextFiles", "ConceptPrompts", "ConceptPrompts.txt")
+                if os.path.exists(fallback_path):
+                    output_urls = [f"/output/{fallback_rel}"]
+            
+            output_urls = abs_urls(output_urls)
+            output_urls = _copy_assets_to_project(params, output_urls)
             return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls}
 
-        elif gen_type == "i2v":
-            prompt_id = await pipeline_runner.run_i2v(params)
-            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 600))
-            output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".mp4", ".webm", ".mov", ".avi", ".gif")))
-            return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls, "url": (output_urls + [""])[0], "video_url": output_urls[0] if output_urls else None}
+        elif gen_type in ("i2v", "t2v"):
+            import re
+            import shutil
+            
+            # Clear previous run cache/files in the song output folder for a clean slate
+            audio_path = params.get("audio_path") or params.get("audio_file") or params.get("audio")
+            if audio_path:
+                # Resolve URLs and project:// paths to local filesystem paths
+                if audio_path.startswith("project://"):
+                    project_path = params.get("project_path") or params.get("projectPath")
+                    if project_path:
+                        rel = audio_path[len("project://"):]
+                        audio_path = os.path.realpath(os.path.join(project_path, rel))
+                elif audio_path.startswith("http://") or audio_path.startswith("https://") or audio_path.startswith("/output/") or audio_path.startswith("/input/"):
+                    import urllib.parse
+                    path_part = urllib.parse.urlparse(audio_path).path if audio_path.startswith("http") else audio_path
+                    if path_part.startswith("/output/"):
+                        rel = path_part[len("/output/"):]
+                        audio_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+                    elif path_part.startswith("/input/"):
+                        rel = path_part[len("/input/"):]
+                        audio_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+                
+                params["audio_path"] = audio_path
+                base_name = os.path.splitext(os.path.basename(audio_path))[0]
+                if os.path.isdir(COMFYUI_OUTPUT_DIR):
+                    for folder_name in os.listdir(COMFYUI_OUTPUT_DIR):
+                        if folder_name == base_name or folder_name.startswith(base_name + "_"):
+                            run_folder = os.path.join(COMFYUI_OUTPUT_DIR, folder_name)
+                            if os.path.isdir(run_folder):
+                                logger.info("Clearing previous run folder for clean slate: %s", run_folder)
+                                temp_dir = os.path.join(run_folder, "vrgdg_temp")
+                                if os.path.exists(temp_dir):
+                                    try:
+                                        shutil.rmtree(temp_dir)
+                                    except Exception as e:
+                                        logger.error("Failed to delete temp dir: %s", e)
+                                remake_dir = os.path.join(run_folder, "remake")
+                                if os.path.exists(remake_dir):
+                                    try:
+                                        shutil.rmtree(remake_dir)
+                                    except Exception as e:
+                                        logger.error("Failed to delete remake dir: %s", e)
+                                for f in os.listdir(run_folder):
+                                    f_path = os.path.join(run_folder, f)
+                                    if os.path.isfile(f_path):
+                                        if f.lower().endswith((".mp4", ".webm", ".avi", ".mov", ".png", ".jpg", ".jpeg", ".json", ".txt")):
+                                            try:
+                                                os.remove(f_path)
+                                            except Exception as e:
+                                                logger.error("Failed to remove old file %s: %s", f_path, e)
 
-        elif gen_type == "t2v":
-            prompt_id = await pipeline_runner.run_t2v(params)
-            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 600))
-            output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".mp4", ".webm", ".mov", ".avi", ".gif")))
-            return {"status": "completed", "prompt_id": prompt_id, "outputs": output_urls, "url": (output_urls + [""])[0], "video_url": output_urls[0] if output_urls else None}
+            # Enqueue the first chunk
+            if gen_type == "t2v":
+                prompt_id = await pipeline_runner.run_t2v(params)
+            else:
+                prompt_id = await pipeline_runner.run_i2v(params)
+
+            current_prompt_id = prompt_id
+            run_folder = None
+
+            while True:
+                # Wait for the current job to complete
+                history_entry = await comfy_client.wait_for_job(current_prompt_id, timeout=params.get("timeout", 3600))
+                
+                # Extract output file paths for this job
+                job_paths = pipeline_runner._extract_output_paths(history_entry, COMFYUI_OUTPUT_DIR)
+                
+                # Find the run folder
+                for path in job_paths:
+                    rel = os.path.relpath(path, COMFYUI_OUTPUT_DIR)
+                    parts = rel.split(os.sep)
+                    if len(parts) > 1:
+                        run_folder = os.path.join(COMFYUI_OUTPUT_DIR, parts[0])
+                        break
+                
+                if not run_folder:
+                    logger.warning("Could not resolve run folder from job paths: %s", job_paths)
+                    break
+                
+                # Determine if we need to loop
+                should_loop = False
+                
+                # Check for remake mode
+                use_remake = params.get("use_remake_folder", False)
+                if isinstance(use_remake, str):
+                    use_remake = use_remake.upper() in ("ON", "TRUE", "1")
+                
+                if use_remake:
+                    # Remake mode: loop if there are still files in the remake directory
+                    remake_dir = os.path.join(run_folder, "remake")
+                    if os.path.isdir(remake_dir):
+                        remake_files = [f for f in os.listdir(remake_dir) if os.path.isfile(os.path.join(remake_dir, f))]
+                        if remake_files:
+                            should_loop = True
+                            logger.info("Remake folder still contains files: %s. Looping...", remake_files)
+                else:
+                    # Normal mode: check srt_autoqueue.json for total_sets and count output files
+                    autoqueue_path = os.path.join(run_folder, "vrgdg_temp", "srt_autoqueue.json")
+                    if os.path.exists(autoqueue_path):
+                        try:
+                            with open(autoqueue_path, "r", encoding="utf-8") as f:
+                                state = json.load(f)
+                            total_sets = state.get("total_sets", 1)
+                            
+                            # Count output files to find next index
+                            indices = []
+                            for f in os.listdir(run_folder):
+                                m = re.match(r".*?_(\d{4})_(\d{4})", f)
+                                if m:
+                                    indices.append(int(m.group(2)))
+                            next_index = (max(indices) + 1) if indices else 0
+                            
+                            if next_index < total_sets:
+                                should_loop = True
+                                logger.info("Completed chunk %d of %d. Looping for next chunk...", next_index, total_sets)
+                        except Exception as e:
+                            logger.error("Failed to parse autoqueue state: %s", e)
+                
+                if should_loop:
+                    # Enqueue the next chunk
+                    if gen_type == "t2v":
+                        current_prompt_id = await pipeline_runner.run_t2v(params)
+                    else:
+                        current_prompt_id = await pipeline_runner.run_i2v(params)
+                else:
+                    break
+
+            # Scan the run folder for all output video files and return them
+            output_urls = []
+            if run_folder:
+                for root, _, files in os.walk(run_folder):
+                    for file in files:
+                        if file.lower().endswith((".mp4", ".webm", ".mov", ".avi", ".gif")):
+                            rel_path = os.path.relpath(os.path.join(root, file), COMFYUI_OUTPUT_DIR)
+                            url_path = f"/output/{rel_path.replace(os.sep, '/')}"
+                            output_urls.append(url_path)
+            
+            output_urls = abs_urls(output_urls)
+            output_urls = _copy_assets_to_project(params, output_urls)
+            return {
+                "status": "completed",
+                "prompt_id": prompt_id,
+                "outputs": output_urls,
+                "url": (output_urls + [""])[0],
+                "video_url": output_urls[0] if output_urls else None
+            }
 
         elif gen_type == "full_pipeline":
             fp_params = FullPipelineParams(**params.get("pipeline", params))
@@ -754,3 +1284,28 @@ async def upload_workflow(
         raise HTTPException(status_code=400, detail="Invalid JSON file")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/models/loras")
+async def get_loras() -> dict:
+    """Fetch the list of available LoRAs from ComfyUI or scan the local directory."""
+    import requests
+    try:
+        url = f"http://{COMFYUI_HOST}:{COMFYUI_PORT}/models/loras"
+        resp = requests.get(url, timeout=3)
+        if resp.status_code == 200:
+            return {"status": "ok", "loras": resp.json()}
+    except Exception:
+        pass
+
+    loras = []
+    local_path = os.path.join(PROJECT_ROOT, "comfyui", "models", "loras")
+    if os.path.exists(local_path):
+        for root, _, files in os.walk(local_path):
+            for file in files:
+                if file.endswith((".safetensors", ".ckpt", ".pt", ".bin", ".sft")):
+                    rel = os.path.relpath(os.path.join(root, file), local_path)
+                    # Normalize backslashes to forward slashes or double backslashes
+                    loras.append(rel)
+    return {"status": "ok", "loras": sorted(loras)}
+

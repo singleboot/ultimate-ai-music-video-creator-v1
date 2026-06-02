@@ -20,16 +20,57 @@ function CanvasInner() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const setProjectPath = useWorkflowStore((s) => s.setProjectPath);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const clearWorkflow = useWorkflowStore((s) => s.clearWorkflow);
+  const openProjectFolder = useWorkflowStore((s) => s.openProjectFolder);
   const [executing, setExecuting] = useState(false);
 
   useEffect(() => {
-    if (loadId) {
-      loadWorkflow(loadId);
-    } else if (newName) {
-      setWorkflowName(newName);
-      if (newPath) setProjectPath(newPath);
-    }
-  }, [loadId, newName, newPath, loadWorkflow, setWorkflowName, setProjectPath]);
+    const init = async () => {
+      if (loadId) {
+        loadWorkflow(loadId);
+      } else if (newName) {
+        clearWorkflow();
+        setWorkflowName(newName);
+        if (newPath) {
+          setProjectPath(newPath);
+          // Wait briefly for state update to complete, then initialize workflow.json on disk
+          setTimeout(() => {
+            useWorkflowStore.getState().saveWorkflow();
+          }, 200);
+        }
+      } else if (newPath) {
+        await openProjectFolder(newPath);
+      }
+    };
+    init();
+  }, [loadId, newName, newPath, loadWorkflow, setWorkflowName, setProjectPath, clearWorkflow, openProjectFolder]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          useWorkflowStore.getState().undo();
+        } else if (e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          useWorkflowStore.getState().saveWorkflow();
+        } else if (e.key.toLowerCase() === 'o') {
+          e.preventDefault();
+          const path = useWorkflowStore.getState().projectPath;
+          if (path) {
+            const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            fetch(`${API}/api/projects/reveal`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path })
+            }).catch(err => console.error("Failed to reveal folder via hotkey:", err));
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleRun = useCallback(async () => {
     if (executing) return;

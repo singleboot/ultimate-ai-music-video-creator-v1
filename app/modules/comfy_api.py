@@ -155,12 +155,12 @@ class ComfyUIClient:
             result = await resp.json()
             return result.get("name", path.name)
 
-    async def wait_for_job(self, prompt_id: str, timeout: int = 600) -> dict:
+    async def wait_for_job(self, prompt_id: str, timeout: int = 3600) -> dict:
         """Poll ComfyUI until a job completes or the timeout is reached.
 
         Args:
             prompt_id: The prompt_id to wait for.
-            timeout: Maximum seconds to wait (default 600).
+            timeout: Maximum seconds to wait (default 3600).
 
         Returns:
             The full history entry for the completed job.
@@ -177,6 +177,17 @@ class ComfyUIClient:
             if history and prompt_id in history:
                 entry = history[prompt_id]
                 status = entry.get("status", {})
+                
+                # Check for ComfyUI execution errors in messages list
+                messages = status.get("messages", [])
+                for msg in messages:
+                    if isinstance(msg, list) and len(msg) > 0 and msg[0] == "execution_error":
+                        error_details = msg[1] if len(msg) > 1 else {}
+                        node_id = error_details.get("node_id", "Unknown")
+                        node_type = error_details.get("node_type", "Unknown")
+                        exception_message = error_details.get("exception_message", "Unknown error")
+                        raise RuntimeError(f"ComfyUI execution failed at node {node_id} ({node_type}): {exception_message}")
+
                 if status.get("completed") or status.get("done"):
                     return entry
                 if status.get("failed") or status.get("error"):

@@ -12,6 +12,7 @@ export default function WorkflowControls({ onRun }) {
   const saveWorkflow = useWorkflowStore((s) => s.saveWorkflow);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
   const clearWorkflow = useWorkflowStore((s) => s.clearWorkflow);
+  const openProjectFolder = useWorkflowStore((s) => s.openProjectFolder);
   const savedWorkflows = useWorkflowStore((s) => s.savedWorkflows);
   const deleteSavedWorkflow = useWorkflowStore((s) => s.deleteSavedWorkflow);
   const nodes = useWorkflowStore((s) => s.nodes);
@@ -20,7 +21,37 @@ export default function WorkflowControls({ onRun }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(workflowName);
   const [showSettings, setShowSettings] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
   const dropdownRef = useRef(null);
+
+  const handleOpenFolder = async () => {
+    const newPath = window.prompt('Enter project folder path:', projectPath || '');
+    if (newPath && newPath.trim()) {
+      const cleanPath = newPath.trim();
+      const loaded = await openProjectFolder(cleanPath);
+      if (loaded) {
+        try {
+          const raw = localStorage.getItem('mv_recent_folders') || '[]';
+          const list = JSON.parse(raw);
+          const updated = [cleanPath, ...list.filter(x => x !== cleanPath)].slice(0, 8);
+          localStorage.setItem('mv_recent_folders', JSON.stringify(updated));
+        } catch (e) {}
+      }
+    }
+  };
+  const handleRevealFolder = async () => {
+    if (!projectPath) return;
+    try {
+      const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      await fetch(`${API}/api/projects/reveal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: projectPath })
+      });
+    } catch (e) {
+      console.error('Failed to reveal project folder:', e);
+    }
+  };
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -33,7 +64,13 @@ export default function WorkflowControls({ onRun }) {
   }, []);
 
   const handleSave = () => {
-    saveWorkflow();
+    try {
+      saveWorkflow();
+      setSaveMsg('Saved!');
+    } catch {
+      setSaveMsg('Save failed');
+    }
+    setTimeout(() => setSaveMsg(''), 2000);
   };
 
   const handleClear = () => {
@@ -178,26 +215,91 @@ export default function WorkflowControls({ onRun }) {
         </div>
       )}
 
-      {/* Project path */}
-      {projectPath && (
-        <div
-          style={{
-            fontSize: 11,
-            color: '#6b6880',
-            padding: '4px 8px',
-            borderRadius: 6,
-            background: 'rgba(176,38,255,0.05)',
-            border: '1px solid rgba(176,38,255,0.1)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: 240,
-          }}
-          title={projectPath}
-        >
-          {projectPath}
-        </div>
-      )}
+      {/* Project folder selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {projectPath ? (
+          <>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#6b6880',
+                padding: '4px 8px',
+                borderRadius: 6,
+                background: 'rgba(176,38,255,0.05)',
+                border: '1px solid rgba(176,38,255,0.1)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 200,
+              }}
+              title={projectPath}
+            >
+              📁 {projectPath}
+            </div>
+            <button
+              onClick={handleOpenFolder}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 6,
+                border: '1px solid rgba(176,38,255,0.2)',
+                background: 'rgba(255,255,255,0.04)',
+                color: '#b9b4d0',
+                fontSize: 10,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(176,38,255,0.15)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#b9b4d0'; }}
+            >
+              Change
+            </button>
+            <button
+              onClick={handleRevealFolder}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 6,
+                border: '1px solid rgba(34,197,94,0.2)',
+                background: 'rgba(255,255,255,0.04)',
+                color: '#b9b4d0',
+                fontSize: 10,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.2)'; e.currentTarget.style.color = '#b9b4d0'; }}
+            >
+              Reveal
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={handleOpenFolder}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: '1px solid rgba(99,212,255,0.3)',
+              background: 'rgba(99,212,255,0.08)',
+              color: '#63d4ff',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all 0.15s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99,212,255,0.15)'; e.currentTarget.style.borderColor = 'rgba(99,212,255,0.5)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99,212,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(99,212,255,0.3)'; }}
+          >
+            📂 Open Project
+          </button>
+        )}
+      </div>
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
@@ -213,123 +315,13 @@ export default function WorkflowControls({ onRun }) {
         {nodes.length} node{nodes.length !== 1 ? 's' : ''}
       </div>
 
-      {/* Save */}
-      <ToolbarButton onClick={handleSave} label="Save" />
+      {/* Undo */}
+      <ToolbarButton onClick={() => useWorkflowStore.getState().undo()} label="↩ Undo" />
 
-      {/* Load dropdown */}
-      <div ref={dropdownRef} style={{ position: 'relative' }}>
-        <ToolbarButton
-          onClick={() => setShowDropdown(!showDropdown)}
-          label="Load"
-          active={showDropdown}
-        />
-        {showDropdown && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: 8,
-              width: 280,
-              background: 'rgba(15,5,30,0.98)',
-              border: '1px solid rgba(176,38,255,0.3)',
-              borderRadius: 12,
-              overflow: 'hidden',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-              zIndex: 100,
-            }}
-          >
-            <div
-              style={{
-                padding: '10px 14px',
-                borderBottom: '1px solid rgba(176,38,255,0.15)',
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#b026ff',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Saved Workflows
-            </div>
-            {savedWorkflows.length === 0 ? (
-              <div
-                style={{
-                  padding: '20px 14px',
-                  textAlign: 'center',
-                  color: '#6b6880',
-                  fontSize: 12,
-                }}
-              >
-                No saved workflows
-              </div>
-            ) : (
-              savedWorkflows.map((wf) => (
-                <div
-                  key={wf.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderBottom: '1px solid rgba(176,38,255,0.08)',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(176,38,255,0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div
-                    style={{ flex: 1, cursor: 'pointer' }}
-                    onClick={() => {
-                      loadWorkflow(wf.id);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                      {wf.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#6b6880', marginTop: 2 }}>
-                      {new Date(wf.savedAt).toLocaleDateString()} &middot;{' '}
-                      {wf.nodes?.length || 0} nodes
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (window.confirm(`Delete "${wf.name}"?`)) {
-                        deleteSavedWorkflow(wf.id);
-                      }
-                    }}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: 6,
-                      border: 'none',
-                      background: 'rgba(239,68,68,0.15)',
-                      color: '#ef4444',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      transition: 'background 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(239,68,68,0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+      {/* Save */}
+        <ToolbarButton onClick={handleSave} label={saveMsg || 'Save'} variant={saveMsg ? 'success' : 'default'} />
+
+
 
       {/* Clear */}
       <ToolbarButton onClick={handleClear} label="Clear" variant="danger" />
@@ -381,15 +373,16 @@ export default function WorkflowControls({ onRun }) {
 
 function ToolbarButton({ onClick, label, variant = 'default', active = false }) {
   const isDanger = variant === 'danger';
+  const isSuccess = variant === 'success';
   return (
     <button
       onClick={onClick}
       style={{
         padding: '6px 14px',
         borderRadius: 8,
-        border: `1px solid ${active ? '#b026ff' : 'rgba(176,38,255,0.2)'}`,
-        background: active ? 'rgba(176,38,255,0.15)' : 'rgba(255,255,255,0.04)',
-        color: isDanger ? '#ef4444' : '#b9b4d0',
+        border: `1px solid ${isSuccess ? '#22c55e' : active ? '#b026ff' : 'rgba(176,38,255,0.2)'}`,
+        background: isSuccess ? 'rgba(34,197,94,0.15)' : active ? 'rgba(176,38,255,0.15)' : 'rgba(255,255,255,0.04)',
+        color: isSuccess ? '#22c55e' : isDanger ? '#ef4444' : '#b9b4d0',
         fontSize: 12,
         fontWeight: 500,
         cursor: 'pointer',
@@ -397,7 +390,7 @@ function ToolbarButton({ onClick, label, variant = 'default', active = false }) 
         transition: 'all 0.15s',
         whiteSpace: 'nowrap',
       }}
-      onMouseEnter={(e) => {
+      onMouseEnter={(e) => { if (isSuccess) return;
         e.currentTarget.style.background = isDanger
           ? 'rgba(239,68,68,0.15)'
           : 'rgba(176,38,255,0.12)';
@@ -406,7 +399,7 @@ function ToolbarButton({ onClick, label, variant = 'default', active = false }) 
           : 'rgba(176,38,255,0.4)';
         e.currentTarget.style.color = isDanger ? '#ef4444' : '#fff';
       }}
-      onMouseLeave={(e) => {
+      onMouseLeave={(e) => { if (isSuccess) return;
         e.currentTarget.style.background = active
           ? 'rgba(176,38,255,0.15)'
           : 'rgba(255,255,255,0.04)';
