@@ -688,6 +688,7 @@ class PipelineRunner:
             ap = params["audio_path"]
             if os.path.isfile(ap):
                 ap = await self.comfy.upload_audio(ap)
+                ap = os.path.realpath(os.path.join(self.input_mgr.base, ap))
             params["audio_path"] = ap
 
         self.editor.inject_i2v_params(workflow, params)
@@ -731,6 +732,7 @@ class PipelineRunner:
             ap = params["audio_path"]
             if os.path.isfile(ap):
                 ap = await self.comfy.upload_audio(ap)
+                ap = os.path.realpath(os.path.join(self.input_mgr.base, ap))
             params["audio_path"] = ap
 
         self.editor.inject_t2v_params(workflow, params)
