@@ -381,12 +381,17 @@ const genericInput = [{ id: 'input-0', label: 'context', icon: '🔗' }];
 
 function getConnectedInputText(nodeId) {
   const state = useWorkflowStore.getState();
-  const incoming = state.edges.find((e) => e.target === nodeId);
-  if (!incoming) return '';
-  const srcNode = state.nodes.find((n) => n.id === incoming.source);
-  if (!srcNode) return '';
-  const d = srcNode.data || {};
-  return d.story_concept || d.theme_style || d.subject_scenes || d.story || d.theme || d.lyrics || d.text || '';
+  const incomingEdges = state.edges.filter((e) => e.target === nodeId);
+  if (incomingEdges.length === 0) return '';
+  const texts = incomingEdges
+    .map((edge) => {
+      const srcNode = state.nodes.find((n) => n.id === edge.source);
+      if (!srcNode) return '';
+      const d = srcNode.data || {};
+      return d.story_concept || d.theme_style || d.subject_scenes || d.story || d.theme || d.lyrics || d.text || '';
+    })
+    .filter(Boolean);
+  return texts.join('\n\n');
 }
 
 const StoryConceptNode = React.memo(function StoryConceptNode({ data, id, selected }) {
