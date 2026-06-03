@@ -120,6 +120,7 @@ class EnhanceTextRequest(BaseModel):
 class LLMAudioAnalysisRequest(BaseModel):
     """Request to analyze audio with Gemma4 LLM."""
     audio_path: str = ""
+    project_path: Optional[str] = ""
     prompt: str = ""
     temperature: float = 0.7
     top_k: int = 64

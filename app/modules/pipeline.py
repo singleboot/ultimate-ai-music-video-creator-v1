@@ -354,6 +354,13 @@ class PipelineRunner:
         if not audio_path:
             raise ValueError("audio_path is required for LLM audio analysis")
 
+        # Resolve project:// paths to local filesystem paths
+        if audio_path.startswith("project://"):
+            project_path = params.get("project_path") or params.get("projectPath")
+            if project_path:
+                rel = audio_path[len("project://"):]
+                audio_path = os.path.realpath(os.path.join(project_path, rel))
+
         # Resolve HTTP output URL back to actual local filesystem path if generated internally
         if audio_path.startswith("http://") or audio_path.startswith("https://"):
             from urllib.parse import urlparse

@@ -810,6 +810,7 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
       } else {
         res = await generateLLMAudioAnalysis({
           audio_path: audioFileName,
+          project_path: useWorkflowStore.getState().projectPath,
           prompt: d.current.prompt || '',
           temperature: d.current.temperature ?? 0.7,
           top_k: d.current.topK ?? 64,
