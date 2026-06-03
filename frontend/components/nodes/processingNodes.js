@@ -891,7 +891,23 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={labelBase}>Max Length</div>
-            <input type="number" min={64} max={4096} step={64} value={d.current.maxLength ?? 2048} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { maxLength: Number(e.target.value) })} style={inputBase} />
+            <select
+              value={d.current.maxLength ?? 2048}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { maxLength: Number(e.target.value) })}
+              style={{
+                ...inputBase,
+                cursor: 'pointer',
+              }}
+            >
+              <option style={{ background: '#1c152a' }} value={64}>64</option>
+              <option style={{ background: '#1c152a' }} value={128}>128</option>
+              <option style={{ background: '#1c152a' }} value={256}>256</option>
+              <option style={{ background: '#1c152a' }} value={512}>512</option>
+              <option style={{ background: '#1c152a' }} value={1024}>1024</option>
+              <option style={{ background: '#1c152a' }} value={2048}>2048</option>
+              <option style={{ background: '#1c152a' }} value={4096}>4096</option>
+            </select>
           </div>
         </div>
         {d.current.text && !loading && (
