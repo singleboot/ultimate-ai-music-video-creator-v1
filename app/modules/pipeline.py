@@ -384,23 +384,42 @@ class PipelineRunner:
 
         workflow = self.editor.get_workflow(params.get("workflow", "llm_gemma4_text_gen_v1"))
 
-        # Structured JSON prompt for reliable parsing
-        default_prompt = (
-            "Analyze this audio track and output ONLY valid JSON with exactly these keys:\n"
-            "genre, instruments, bpm, keyscale, mood, description.\n\n"
-            "Rules:\n"
-            "- genre: a short genre name (e.g. 'Bollywood Dance', 'Punjabi Pop')\n"
-            "- instruments: comma-separated list of primary instruments\n"
-            "- bpm: integer beats per minute (estimate if unsure)\n"
-            "- keyscale: musical key and scale (e.g. 'C major', 'A minor')\n"
-            "- mood: one-word or short phrase describing the mood\n"
-            "- description: a 2-3 sentence prose summary detailing style, energy, and the gender/type of vocals if singing is present (e.g. 'male vocals', 'female vocals', or 'instrumental')\n\n"
-            "Output ONLY the JSON object. No markdown, no commentary."
-        )
+        # Select prompt based on mode
+        mode = params.get("mode", "instrument")
+        if mode == "lyrics":
+            default_prompt = (
+                "You are an expert audio transcriber. Listen to the attached audio file and extract the lyrics. \n\n"
+                "You must strictly output the lyrics formatted exactly like the example below, using tags like [Verse], [Pre-Chorus], [Chorus], etc. Do not include any introductory sentences, conversational filler, or explanations. Do not output <think> tags.\n\n"
+                "Format Example:\n"
+                "[Verse]\n"
+                "Salt in the air, phone face down\n"
+                "Sun melting slow, gold to brown\n\n"
+                "[Chorus]\n"
+                "Let the ocean take the weight\n"
+                "I don't need to rush my fate\n\n"
+                "Task: Transcribe the attached audio into the format above. Only output the structured lyrics."
+            )
+        else:
+            default_prompt = (
+                "Analyze this audio track and output ONLY valid JSON with exactly these keys:\n"
+                "genre, instruments, bpm, keyscale, mood, description.\n\n"
+                "Rules:\n"
+                "- genre: a short genre name (e.g. 'Bollywood Dance', 'Punjabi Pop')\n"
+                "- instruments: comma-separated list of primary instruments\n"
+                "- bpm: integer beats per minute (estimate if unsure)\n"
+                "- keyscale: musical key and scale (e.g. 'C major', 'A minor')\n"
+                "- mood: one-word or short phrase describing the mood\n"
+                "- description: a 2-3 sentence prose summary detailing style, energy, and the gender/type of vocals if singing is present (e.g. 'male vocals', 'female vocals', or 'instrumental')\n\n"
+                "Output ONLY the JSON object. No markdown, no commentary."
+            )
+
+        prompt = params.get("prompt")
+        if not prompt:
+            prompt = default_prompt
 
         inject_params = {
             "audio_file": filename,
-            "prompt": params.get("prompt", default_prompt),
+            "prompt": prompt,
         }
         for key in ("temperature", "top_k", "top_p", "max_length"):
             if key in params:
@@ -409,7 +428,7 @@ class PipelineRunner:
 
         self.editor.inject_llm_text_gen_params(workflow, inject_params)
         prompt_id = await self.comfy.enqueue_workflow(workflow)
-        logger.info("Enqueued LLM audio analysis job: prompt_id=%s", prompt_id)
+        logger.info("Enqueued LLM audio analysis job: prompt_id=%s, mode=%s", prompt_id, mode)
 
         try:
             history = await self.comfy.wait_for_job(prompt_id, timeout=1800)
@@ -428,6 +447,10 @@ class PipelineRunner:
         if not raw_text:
             logger.warning("LLM audio analysis job %s returned empty text", prompt_id)
             raise RuntimeError("LLM audio analysis returned empty result")
+
+        if mode == "lyrics":
+            logger.info("LLM lyrics transcription completed for job %s", prompt_id)
+            return {"text": raw_text}
 
         # Try to parse JSON from the response
         result = self._parse_llm_audio_json(raw_text)

@@ -168,6 +168,7 @@ const coverInputs = [
   { id: 'input-0', label: 'audio', icon: '\uD83C\uDFB5' },
   { id: 'input-1', label: 'genre', icon: '\uD83C\uDFB6' },
   { id: 'input-2', label: 'bpm', icon: '\u2699\uFE0F' },
+  { id: 'input-3', label: 'lyrics', icon: '\uD83D\uDCDD' },
 ];
 const coverOut = [{ id: 'output-0', label: 'audio', icon: '\uD83C\uDFB5' }];
 
@@ -676,6 +677,7 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
         audio_file: inputs.audioFileName || d.current.audioFileName || '',
         genre: inputs.genre || (Array.isArray(d.current.genre) ? d.current.genre.join(', ') : d.current.genre) || '',
         bpm: inputs.bpm || d.current.bpm || 120,
+        lyrics: inputs.lyrics || d.current.lyrics || '',
       });
       if (cancelled.current) return;
       useWorkflowStore.getState().updateNodeData(id, { audioUrl: res.audio_url || res.url || '', promptId: res.prompt_id || res.job_id || '', isRunning: false, error: undefined });
@@ -696,6 +698,14 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
   return (
     <BaseNode title="Cover Generator" color="#ec4899" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={coverInputs} outputHandles={coverOut}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        <div style={labelBase}>Lyrics (optional)</div>
+        <textarea
+          className="nodrag"
+          value={d.current.lyrics || ''}
+          onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { lyrics: e.target.value })}
+          placeholder="Paste or connect transcribed lyrics..."
+          style={{ ...inputBase, resize: 'none', fontSize: 10, minHeight: 32, userSelect: 'text', WebkitUserSelect: 'text' }}
+        />
         <div style={outputContainerBase}>
           {d.current.audioUrl && !loading && (
             <audio controls preload="metadata" style={{ width: '100%', height: 28 }} src={resolveUrl(d.current.audioUrl, useWorkflowStore.getState().projectPath)} />
@@ -800,6 +810,7 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
         fd.append('type', 'llm_audio_analysis');
         fd.append('audio_file', audioFile);
         fd.append('prompt', d.current.prompt || '');
+        fd.append('mode', d.current.mode || 'instrument');
         fd.append('temperature', String(d.current.temperature ?? 0.7));
         fd.append('top_k', String(d.current.topK ?? 64));
         fd.append('top_p', String(d.current.topP ?? 0.95));
@@ -812,6 +823,7 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
           audio_path: audioFileName,
           project_path: useWorkflowStore.getState().projectPath,
           prompt: d.current.prompt || '',
+          mode: d.current.mode || 'instrument',
           temperature: d.current.temperature ?? 0.7,
           top_k: d.current.topK ?? 64,
           top_p: d.current.topP ?? 0.95,
@@ -846,6 +858,15 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
   return (
     <BaseNode title="Audio Analyzer" color="#10b981" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={llmTextGenInputs} outputHandles={llmTextGenOut}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        <div style={labelBase}>Analysis Mode</div>
+        <Select
+          value={d.current.mode || 'instrument'}
+          onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { mode: e.target.value })}
+          options={[
+            { value: 'instrument', label: 'Instrument / Style' },
+            { value: 'lyrics', label: 'Lyrics / Transcription' }
+          ]}
+        />
         <div style={labelBase}>Custom Prompt (optional)</div>
         <textarea
           className="nodrag"

@@ -122,6 +122,7 @@ class LLMAudioAnalysisRequest(BaseModel):
     audio_path: str = ""
     project_path: Optional[str] = ""
     prompt: str = ""
+    mode: str = "instrument"  # "instrument" or "lyrics"
     temperature: float = 0.7
     top_k: int = 64
     top_p: float = 0.95
@@ -814,6 +815,7 @@ async def generate(
     top_p: Optional[str] = Form(None),
     max_length: Optional[str] = Form(None),
     seed: Optional[str] = Form(None),
+    mode: Optional[str] = Form(None),
 ) -> dict:
     """Submit a generation job.
 
@@ -842,7 +844,7 @@ async def generate(
             pass
     else:
         gen_type = type
-        for key in ("prompt", "temperature", "top_k", "top_p", "max_length", "seed"):
+        for key in ("prompt", "temperature", "top_k", "top_p", "max_length", "seed", "mode"):
             val = locals().get(key)
             if val is not None:
                 try:
