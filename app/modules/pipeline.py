@@ -550,9 +550,28 @@ class PipelineRunner:
 
         filename = await self.comfy.upload_audio(audio_path)
 
-        workflow = self.editor.get_workflow(params.get("workflow", "ace_audio_cover"))
+        genre = params.get("genre", params.get("text", "futurebass")).strip()
+        singer_style = params.get("singer_style", "auto")
+        
+        style_tags = []
+        if singer_style == "male":
+            style_tags.append("male vocals, singing by a man")
+        elif singer_style == "female":
+            style_tags.append("female vocals, singing by a woman")
+        elif singer_style == "duet":
+            style_tags.append("duet, male and female vocals, singing by a man and a woman")
+        elif singer_style == "chorus":
+            style_tags.append("chorus, group vocals, ensemble singing")
+
+        if style_tags:
+            genre_lower = genre.lower()
+            tags_to_add = [tag for tag in style_tags if tag.split(',')[0].strip() not in genre_lower]
+            if tags_to_add:
+                genre = f"{genre}, {', '.join(tags_to_add)}"
+
         inject_params = {
             "audio_file": filename,
+            "genre": genre,
             "lyrics": params.get("lyrics", ""),
             "language": params.get("language", "en"),
             "duration": params.get("duration", 180),

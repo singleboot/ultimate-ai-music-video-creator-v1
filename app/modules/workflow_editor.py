@@ -311,6 +311,9 @@ class WorkflowEditor:
         for key, value in inject.items():
             self.set_node_input(workflow, "31", key, value)
 
+        if "genre" in params:
+            self.set_node_input(workflow, "33", "input_text", params["genre"])
+
         self._inject_ace_advanced_params(workflow, params)
 
         return workflow

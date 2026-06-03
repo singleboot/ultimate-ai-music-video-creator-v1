@@ -678,6 +678,7 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
         genre: inputs.genre || (Array.isArray(d.current.genre) ? d.current.genre.join(', ') : d.current.genre) || '',
         bpm: inputs.bpm || d.current.bpm || 120,
         lyrics: inputs.lyrics || d.current.lyrics || '',
+        singer_style: d.current.singerStyle || 'auto',
       });
       if (cancelled.current) return;
       useWorkflowStore.getState().updateNodeData(id, { audioUrl: res.audio_url || res.url || '', promptId: res.prompt_id || res.job_id || '', isRunning: false, error: undefined });
@@ -698,6 +699,18 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
   return (
     <BaseNode title="Cover Generator" color="#ec4899" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={coverInputs} outputHandles={coverOut}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        <div style={labelBase}>Singer Style</div>
+        <Select
+          value={d.current.singerStyle || 'auto'}
+          onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { singerStyle: e.target.value })}
+          options={[
+            { value: 'auto', label: 'Auto / Default' },
+            { value: 'male', label: 'Male Singer' },
+            { value: 'female', label: 'Female Singer' },
+            { value: 'duet', label: 'Duet (Male + Female)' },
+            { value: 'chorus', label: 'Chorus (Group)' }
+          ]}
+        />
         <div style={labelBase}>Lyrics (optional)</div>
         <textarea
           className="nodrag"
