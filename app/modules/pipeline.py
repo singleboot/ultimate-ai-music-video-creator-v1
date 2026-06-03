@@ -282,6 +282,7 @@ class PipelineRunner:
                 "You are an expert cinematographer. "
                 "Enhance and expand the following description of subjects and scenes/locations for a music video. "
                 "Provide details on character appearance, actions, exact environment settings, lighting, and layout. "
+                "CRITICAL: If the guiding context specifies vocal type or singer gender (e.g., 'male vocals', 'female vocals', 'singing by a man'), ensure the main subject's gender and description match that vocal type (e.g., describe the main subject as a man if the vocals are male). "
                 "Do not include any introductory text, explanations, or meta-commentary. "
                 "Return only the enhanced subjects and locations."
             )
@@ -386,7 +387,7 @@ class PipelineRunner:
             "- bpm: integer beats per minute (estimate if unsure)\n"
             "- keyscale: musical key and scale (e.g. 'C major', 'A minor')\n"
             "- mood: one-word or short phrase describing the mood\n"
-            "- description: a 2-3 sentence prose summary\n\n"
+            "- description: a 2-3 sentence prose summary detailing style, energy, and the gender/type of vocals if singing is present (e.g. 'male vocals', 'female vocals', or 'instrumental')\n\n"
             "Output ONLY the JSON object. No markdown, no commentary."
         )
 
