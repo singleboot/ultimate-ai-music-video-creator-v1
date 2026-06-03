@@ -1053,9 +1053,9 @@ async def generate(
                                 video_files_count += 1
                                 
                                 # Match standard patterns:
-                                # - video_[seq]_[chunk_idx]_[counter].mp4 (three digit sequences)
-                                # - video_[chunk_idx]_[counter].mp4 (two digit sequences)
-                                m = re.match(r"^.*_(\d+)_(\d+)(?:_(\d+))?\.mp4$", f.lower())
+                                # - video_[seq]_[chunk_idx]_[counter].[ext] (three digit sequences)
+                                # - video_[chunk_idx]_[counter].[ext] (two digit sequences)
+                                m = re.match(r"^.*_(\d+)_(\d+)(?:_(\d+))?\.(?:mp4|webm|mov|avi|gif)$", f.lower())
                                 if m:
                                     g1, g2, g3 = m.groups()
                                     if g3 is not None:

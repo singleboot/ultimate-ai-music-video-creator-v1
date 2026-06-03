@@ -15,7 +15,7 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3001 ^| findstr LISTENING') 
 
 REM Start API backend
 echo [1/2] Starting API server on port 8000...
-start "API" /MIN cmd /k "cd /d "%~dp0app" && python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
+start "API" /MIN cmd /k "cd /d "%~dp0app" && python -m uvicorn main:app --host 127.0.0.1 --port 8000"
 ping 127.0.0.1 -n 5 >nul
 
 REM Start Next.js frontend
