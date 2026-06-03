@@ -1042,11 +1042,31 @@ async def generate(
                             
                             # Count output files to find next index
                             indices = []
+                            video_files_count = 0
                             for f in os.listdir(run_folder):
-                                m = re.match(r".*?_(\d{4})_(\d{4})", f)
+                                # Skip auxiliary files like audio mux or png
+                                if f.lower().endswith(("-audio.mp4", "-audio.webm", "-audio.mov", "-audio.avi")):
+                                    continue
+                                if not f.lower().endswith((".mp4", ".webm", ".mov", ".avi", ".gif")):
+                                    continue
+                                
+                                video_files_count += 1
+                                
+                                # Match standard patterns:
+                                # - video_[seq]_[chunk_idx]_[counter].mp4 (three digit sequences)
+                                # - video_[chunk_idx]_[counter].mp4 (two digit sequences)
+                                m = re.match(r"^.*_(\d+)_(\d+)(?:_(\d+))?\.mp4$", f.lower())
                                 if m:
-                                    indices.append(int(m.group(2)))
-                            next_index = (max(indices) + 1) if indices else 0
+                                    g1, g2, g3 = m.groups()
+                                    if g3 is not None:
+                                        indices.append(int(g2))
+                                    else:
+                                        indices.append(int(g1))
+                            
+                            if indices:
+                                next_index = max(indices) + 1
+                            else:
+                                next_index = video_files_count
                             
                             if next_index < total_sets:
                                 should_loop = True
