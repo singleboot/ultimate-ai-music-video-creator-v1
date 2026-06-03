@@ -62,6 +62,102 @@ def _duration_to_lyrics_hint(duration: int) -> str:
         return "full song length (multiple verses, choruses, bridge, ~60+ seconds)"
 
 
+import re
+
+def get_clean_lyrics_lines(lyrics_text: str) -> list[str]:
+    clean_lines = []
+    for line in lyrics_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Skip section headers like [Verse 1], [Chorus], etc.
+        # But KEEP lines like [Male] or [Female] if they have text after them or are specifically speaker-only tags.
+        if line.startswith('[') and line.endswith(']'):
+            tag = line[1:-1].strip().lower()
+            # If the tag is a known section header, skip it
+            if any(h in tag for h in ["verse", "chorus", "bridge", "intro", "outro", "hook", "pre-chorus"]):
+                continue
+        clean_lines.append(line)
+    return clean_lines
+
+
+def post_process_concept_prompts(concepts_file_path: str, params: dict):
+    """Post-processes the ConceptPrompts.txt JSON file to dynamically align subjects for multi-singer tracks."""
+    if not os.path.exists(concepts_file_path):
+        return
+
+    subject_text = params.get("subject_scenes", "")
+    from .subject_parser import parse_multi_subjects, get_subject_for_segment
+    subjects_map = parse_multi_subjects(subject_text)
+    
+    # If there are no multi-singer subjects defined (only default), nothing to post-process
+    if len(subjects_map) <= 1 and "default" in subjects_map:
+        return
+
+    try:
+        with open(concepts_file_path, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+            if not content:
+                return
+            prompts_dict = json.loads(content)
+    except Exception as e:
+        logger.warning("Failed to read/parse concepts file for post-processing: %s", e)
+        return
+
+    lyrics = params.get("lyrics", "")
+    clean_lines = get_clean_lyrics_lines(lyrics)
+
+    default_subject = subjects_map.get("default", "")
+    if not default_subject and subjects_map:
+        default_subject = list(subjects_map.values())[0]
+
+    updated_prompts = {}
+    for key, prompt_text in prompts_dict.items():
+        match = re.match(r'^Prompt(\d+)$', key)
+        if not match:
+            updated_prompts[key] = prompt_text
+            continue
+        
+        idx = int(match.group(1)) - 1
+        segment_lyric = ""
+        if 0 <= idx < len(clean_lines):
+            segment_lyric = clean_lines[idx]
+
+        target_subject = get_subject_for_segment(segment_lyric, subjects_map, default_subject)
+        
+        if target_subject and target_subject != default_subject and default_subject:
+            def_sub_clean = default_subject.rstrip('.').strip()
+            target_sub_clean = target_subject.rstrip('.').strip()
+            
+            pattern = re.compile(re.escape(def_sub_clean), re.IGNORECASE)
+            if pattern.search(prompt_text):
+                new_prompt_text = pattern.sub(target_sub_clean, prompt_text, count=1)
+                updated_prompts[key] = new_prompt_text
+                logger.info("Aligned prompt %s to singer subject: %s", key, target_sub_clean)
+            else:
+                # Fallback: if default subject string is not exactly matched, split on the first colon (which separates the location)
+                # and replace the portion before the colon with target_subject + location
+                parts = prompt_text.split(':', 1)
+                if len(parts) == 2:
+                    sub_parts = parts[0].split('.', 1)
+                    if len(sub_parts) == 2:
+                        new_prompt_text = f"{target_sub_clean}.{sub_parts[1]}:{parts[1]}"
+                        updated_prompts[key] = new_prompt_text
+                    else:
+                        updated_prompts[key] = f"{target_sub_clean}. {prompt_text}"
+                else:
+                    updated_prompts[key] = f"{target_sub_clean}. {prompt_text}"
+        else:
+            updated_prompts[key] = prompt_text
+
+    try:
+        with open(concepts_file_path, 'w', encoding='utf-8') as f:
+            json.dump(updated_prompts, f, indent=2)
+        logger.info("Successfully post-processed concept prompts with dynamic singer subjects.")
+    except Exception as e:
+        logger.error("Failed to write updated concept prompts: %s", e)
+
+
 class PipelineRunner:
     """Orchestrates multi-step generation pipelines across ACE audio,
     prompt creator, and video workflows."""
@@ -1016,10 +1112,19 @@ class PipelineRunner:
                         concepts_file = os.path.basename(path)
                         break
                 
-                if not concepts_file:
+                concepts_file_path = None
+                if concepts_file:
+                    concepts_file_path = os.path.join(comfy_output_dir, "VRGDG_TEMP", "TextFiles", "ConceptPrompts", concepts_file)
+                    if not os.path.exists(concepts_file_path):
+                        concepts_file_path = os.path.join(comfy_output_dir, concepts_file)
+                else:
                     fallback_path = os.path.join(comfy_output_dir, "VRGDG_TEMP", "TextFiles", "ConceptPrompts", "ConceptPrompts.txt")
                     if os.path.exists(fallback_path):
                         concepts_file = "ConceptPrompts.txt"
+                        concepts_file_path = fallback_path
+
+                if concepts_file_path and os.path.exists(concepts_file_path):
+                    post_process_concept_prompts(concepts_file_path, params)
 
                 if concepts_file:
                     video_params["concepts_file"] = concepts_file

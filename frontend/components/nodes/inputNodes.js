@@ -661,7 +661,7 @@ const SubjectLocationsNode = React.memo(function SubjectLocationsNode({ data, id
             className="nodrag"
             value={data.subject_scenes || ''}
             onChange={(e) => data.onUpdate?.(id, { subject_scenes: e.target.value })}
-            placeholder="Describe subjects and settings: character appearance, key details, environments..."
+            placeholder="Describe subjects and settings: character appearance, key details, environments...\n\nFor duets/chorus, define subjects by speaker:\n[Male] a man with...\n[Female] a woman with...\n[Duet] a man and a woman...\n[Chorus] a group of..."
             style={{ ...inputBase, resize: 'none', width: '100%', height: '100%', minHeight: 120, lineHeight: 1.5, fontSize: 11, userSelect: 'text', WebkitUserSelect: 'text' }}
           />
           {enhancing && <NodeSpinner variant="prompt" />}
