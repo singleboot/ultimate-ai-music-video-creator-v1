@@ -8,6 +8,9 @@ export const resolveUrl = (url, projectPath) => {
     const asset = url.substring('project://'.length);
     return `${BASE_URL}/api/projects/asset?path=${encodeURIComponent(projectPath)}&asset=${encodeURIComponent(asset)}`;
   }
+  if (url.startsWith('/output/') || url.startsWith('/input/')) {
+    return `${BASE_URL}${url}`;
+  }
   return url;
 };
 
@@ -113,6 +116,20 @@ export const generatePrompts = (params) =>
 export const generateVideo = (params) =>
   api.post('/api/generate', { type: params.mode || 't2v', params }).then((r) => r.data);
 
+/**
+ * Start an async video generation job. Returns { job_id } immediately.
+ * Poll getVideoJobStatus(job_id) to track progress.
+ */
+export const startVideoJob = (type, params) =>
+  api.post('/api/generate/video/start', { type, params }).then((r) => r.data);
+
+/**
+ * Poll the status of an async video generation job.
+ * Returns { status, message, outputs, video_url, error, ... }
+ */
+export const getVideoJobStatus = (jobId) =>
+  api.get(`/api/generate/video/status/${jobId}`).then((r) => r.data);
+
 export const cancelJob = (promptId) =>
   api.post(`/api/cancel/${promptId}`).then((r) => r.data);
 
@@ -125,8 +142,8 @@ export const sendChat = (message, history = []) =>
 export const getHealth = () =>
   api.get('/api/health').then((r) => r.data);
 
-export const combineVideoAudio = (video_url, audio_url) =>
-  api.post('/api/generate/combine', { video_url, audio_url }).then((r) => r.data);
+export const combineVideoAudio = (video_url, audio_url, project_path) =>
+  api.post('/api/generate/combine', { video_url, audio_url, project_path }).then((r) => r.data);
 
 export const fetchLoras = () =>
   api.get('/api/models/loras').then((r) => r.data);

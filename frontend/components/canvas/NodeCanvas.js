@@ -12,9 +12,9 @@ import {
 import '@xyflow/react/dist/style.css';
 import useWorkflowStore from '../../store/workflowStore';
 
-import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode } from '../nodes/inputNodes';
-import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, T2VGeneratorNode, I2VGeneratorNode, VideoWorkflowSettingsNode, LTXLoRASettingsNode, ZImageLoRASettingsNode, VideoAdvancedSettingsNode, ImageGeneratorNode, VideoAudioCombinerNode } from '../nodes/processingNodes';
-import { AudioPlayerNode, VideoPlayerNode, ImagePreviewNode, TextPreviewNode } from '../nodes/outputNodes';
+import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode, VisualStylesNode, YouTubeAudioNode } from '../nodes/inputNodes';
+import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, T2VGeneratorNode, I2VGeneratorNode, VideoWorkflowSettingsNode, LTXLoRASettingsNode, ZImageLoRASettingsNode, VideoAdvancedSettingsNode, ImageGeneratorNode, VideoAudioCombinerNode, VideoUpscalerNode } from '../nodes/processingNodes';
+import { AudioPlayerNode, VideoPlayerNode, ImagePreviewNode, TextPreviewNode, DebugJsonNode } from '../nodes/outputNodes';
 
 function DeleteButtonEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd }) {
   const [hover, setHover] = useState(false);
@@ -78,10 +78,14 @@ const nodeTypes = {
   VideoAdvancedSettingsNode,
   ImageGeneratorNode,
   VideoAudioCombinerNode,
+  VideoUpscalerNode,
   AudioPlayerNode,
   VideoPlayerNode,
   ImagePreviewNode,
   TextPreviewNode,
+  DebugJsonNode,
+  VisualStylesNode,
+  YouTubeAudioNode,
 };
 
 const NODE_LABELS = {
@@ -103,8 +107,12 @@ const NODE_LABELS = {
   VideoAdvancedSettingsNode: 'Video Advanced Settings',
   ImageGeneratorNode: 'Image Generator',
   VideoAudioCombinerNode: 'Video & Audio Combiner',
+  VideoUpscalerNode: 'Video Upscaler',
   AudioPlayerNode: 'Audio Player', VideoPlayerNode: 'Video Player',
   ImagePreviewNode: 'Image Preview', TextPreviewNode: 'Text Preview',
+  DebugJsonNode: 'ComfyUI JSON Debugger',
+  VisualStylesNode: 'Visual Style Presets',
+  YouTubeAudioNode: 'YouTube Audio Source',
 };
 
 // Maps (nodeType → handleId → dataKey)
@@ -120,6 +128,8 @@ const HANDLE_KEY = {
   GutsSettingsNode: { 'output-0': 'gutsSettings' },
   StoryConceptNode: { 'input-0': 'context', 'output-0': 'story_concept' },
   StyleThemeNode: { 'input-0': 'context', 'output-0': 'theme_style' },
+  VisualStylesNode: { 'output-0': 'theme_style' },
+  YouTubeAudioNode: { 'output-0': 'audio', 'output-1': 'file' },
   SubjectLocationsNode: { 'input-0': 'context', 'output-0': 'subject_scenes' },
   LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'songSettings', 'output-0': 'lyrics' },
   MusicGeneratorNode: { 'input-0': 'params', 'input-1': 'instruments', 'input-2': 'settings', 'output-0': 'audio', 'output-1': 'debug' },
@@ -134,11 +144,13 @@ const HANDLE_KEY = {
   ZImageLoRASettingsNode: { 'output-0': 'z-loras' },
   VideoAdvancedSettingsNode: { 'output-0': 'advanced' },
   VideoAudioCombinerNode: { 'input-0': 'video', 'input-1': 'audio', 'output-0': 'video' },
+  VideoUpscalerNode: { 'input-0': 'video', 'output-0': 'video' },
   ImageGeneratorNode: { 'input-0': 'prompts', 'input-1': 'params', 'output-0': 'image' },
   AudioPlayerNode: { 'input-0': 'audio' },
   VideoPlayerNode: { 'input-0': 'video' },
   ImagePreviewNode: { 'input-0': 'image' },
   TextPreviewNode: { 'input-0': 'text/lyrics' },
+  DebugJsonNode: { 'input-0': 'debug' },
 };
 
 // Output dataKey → compatible target suggestions
@@ -198,6 +210,7 @@ const SUGGESTIONS = {
   video: [
     { type: 'VideoPlayerNode', handle: 'input-0', label: 'Video Player' },
     { type: 'VideoAudioCombinerNode', handle: 'input-0', label: 'Video & Audio Combiner' },
+    { type: 'VideoUpscalerNode', handle: 'input-0', label: 'Video Upscaler' },
   ],
   image: [
     { type: 'ImagePreviewNode', handle: 'input-0', label: 'Image Preview' },
@@ -220,6 +233,7 @@ const SUGGESTIONS = {
   ],
   combiner: [
     { type: 'VideoAudioCombinerNode', handle: 'input-0', label: 'Video & Audio Combiner' },
+    { type: 'VideoUpscalerNode', handle: 'input-0', label: 'Video Upscaler' },
   ],
   'text/lyrics': [
     { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
@@ -256,6 +270,7 @@ const INPUT_SUGGESTIONS = {
     { type: 'DurationNode', handle: 'output-0', label: 'Duration' },
   ],
   audio: [
+    { type: 'YouTubeAudioNode', handle: 'output-0', label: 'YouTube Audio Source' },
     { type: 'AudioFileNode', handle: 'output-0', label: 'Audio File' },
     { type: 'MusicGeneratorNode', handle: 'output-0', label: 'Music Generator' },
     { type: 'CoverGeneratorNode', handle: 'output-0', label: 'Cover Generator' },
@@ -809,6 +824,47 @@ export default function NodeCanvas() {
   const connectStartRef = useRef(null);
   const edgeCountRef = useRef(0);
 
+  // Ctrl + Space Quick Search State
+  const [showQuickSearch, setShowQuickSearch] = useState(false);
+  const [quickSearchPos, setQuickSearchPos] = useState({ x: 0, y: 0 });
+  const [quickSearchQuery, setQuickSearchQuery] = useState('');
+  const [selectedQuickSearchIndex, setSelectedQuickSearchIndex] = useState(0);
+
+  // Flatten all searchable nodes from sections
+  const ALL_SEARCHABLE_NODES = useMemo(() => {
+    return QUICK_ADD_SECTIONS.flatMap(section => 
+      section.nodes.map(node => ({
+        ...node,
+        section: section.title
+      }))
+    );
+  }, []);
+
+  const filteredQuickSearchNodes = useMemo(() => {
+    if (!quickSearchQuery) return ALL_SEARCHABLE_NODES;
+    const q = quickSearchQuery.toLowerCase();
+    return ALL_SEARCHABLE_NODES.filter(
+      n => n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q)
+    );
+  }, [quickSearchQuery, ALL_SEARCHABLE_NODES]);
+
+  // Handle Ctrl + Space trigger
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && (e.key === ' ' || e.code === 'Space')) {
+        const target = e.target;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        e.preventDefault();
+        setQuickSearchPos({ x: mouseRef.current.x, y: mouseRef.current.y });
+        setQuickSearchQuery('');
+        setSelectedQuickSearchIndex(0);
+        setShowQuickSearch(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Track edge count to detect if a connection was actually made
   useEffect(() => {
     edgeCountRef.current = edges.length;
@@ -836,6 +892,7 @@ export default function NodeCanvas() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       autoSaveWorkflow();
+      useWorkflowStore.getState().saveWorkflow().catch(e => console.error("Auto-sync error:", e));
       backupTextContent();
     }, 2000);
   }, [nodes, edges, autoSaveWorkflow, backupTextContent]);
@@ -980,15 +1037,10 @@ export default function NodeCanvas() {
       
       // Node IDs
       const analyzerId = `node_${Date.now()}_analyzer`;
-      const promptId = `node_${Date.now()}_prompt`;
-      const videoGenId = `node_${Date.now()}_videogen`;
-      const videoPlayId = `node_${Date.now()}_videoplay`;
-
       // 1. Spawn Nodes
       addNode({ id: analyzerId, type: 'LLMTextGenNode', position: { x: pos.x, y: pos.y }, data: {} });
-      addNode({ id: promptId, type: 'PromptCreatorNode', position: { x: pos.x + 240, y: pos.y + 120 }, data: {} });
-      const t2vGenId = addVideoGeneratorPipeline(addNode, { x: pos.x + 1080, y: pos.y + 120 }, 'T2VGeneratorNode');
-      addNode({ id: videoPlayId, type: 'VideoPlayerNode', position: { x: pos.x + 1380, y: pos.y + 120 }, data: {} });
+      const promptId = addPromptCreatorPipeline(addNode, { x: pos.x + 800, y: pos.y + 120 });
+      const t2vGenId = addVideoGeneratorPipeline(addNode, { x: pos.x + 1750, y: pos.y + 120 }, 'T2VGeneratorNode');
 
       // 2. Spawn Connections (using short timeout to let store digest nodes addition)
       setTimeout(() => {
@@ -1019,16 +1071,6 @@ export default function NodeCanvas() {
             source: promptId,
             sourceHandle: 'output-0',
             target: t2vGenId,
-            targetHandle: 'input-0',
-            type: 'smoothstep',
-            style: { stroke: '#b026ff', strokeWidth: 2 },
-          },
-          // Video Generator -> Video Player
-          {
-            id: `edge_${Date.now()}_a4`,
-            source: t2vGenId,
-            sourceHandle: 'output-0',
-            target: videoPlayId,
             targetHandle: 'input-0',
             type: 'smoothstep',
             style: { stroke: '#b026ff', strokeWidth: 2 },
@@ -1096,6 +1138,28 @@ export default function NodeCanvas() {
     connectStartRef.current = null;
   }, [connectMenu, addNode]);
 
+  const handleQuickSearchSelect = useCallback((item) => {
+    const pos = reactFlowInstance.screenToFlowPosition({ x: quickSearchPos.x, y: quickSearchPos.y });
+    if (item.type === 'PromptCreatorNode') {
+      addPromptCreatorPipeline(addNode, pos);
+    } else if (item.type === 'T2VGeneratorNode' || item.type === 'I2VGeneratorNode') {
+      addVideoGeneratorPipeline(addNode, pos, item.type);
+    } else if (item.type === 'MusicGeneratorNode') {
+      addMusicGeneratorPipeline(addNode, pos);
+    } else if (item.type === 'LyricsGeneratorNode') {
+      addLyricsGeneratorPipeline(addNode, pos);
+    } else if (item.type === 'TTSGeneratorNode') {
+      addTTSGeneratorPipeline(addNode, pos);
+    } else if (item.type === 'CoverGeneratorNode') {
+      addCoverGeneratorPipeline(addNode, pos);
+    } else if (item.type === 'LLMTextGenNode') {
+      addLLMTextGenPipeline(addNode, pos);
+    } else {
+      addNode({ id: getNodeId(), type: item.type, position: pos, data: {} });
+    }
+    setShowQuickSearch(false);
+  }, [quickSearchPos, addNode, reactFlowInstance]);
+
   const onConnect = useCallback((connection) => {
     useWorkflowStore.getState().onEdgesChange([{
       type: 'add',
@@ -1119,27 +1183,23 @@ export default function NodeCanvas() {
     if (!nodeType) return;
     const pos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
     
-    if (nodeType.endsWith('_bundle')) {
-      const actualType = nodeType.replace('_bundle', '');
-      if (actualType === 'PromptCreatorNode') {
-        addPromptCreatorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
-      } else if (actualType === 'T2VGeneratorNode' || actualType === 'I2VGeneratorNode') {
-        addVideoGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 }, actualType);
-      } else if (actualType === 'MusicGeneratorNode') {
-        addMusicGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
-      } else if (actualType === 'LyricsGeneratorNode') {
-        addLyricsGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
-      } else if (actualType === 'TTSGeneratorNode') {
-        addTTSGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
-      } else if (actualType === 'CoverGeneratorNode') {
-        addCoverGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
-      } else if (actualType === 'LLMTextGenNode') {
-        addLLMTextGenPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
-      } else {
-        addNode({ id: getNodeId(), type: actualType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
-      }
+    const actualType = nodeType.replace('_bundle', '');
+    if (actualType === 'PromptCreatorNode') {
+      addPromptCreatorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (actualType === 'T2VGeneratorNode' || actualType === 'I2VGeneratorNode') {
+      addVideoGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 }, actualType);
+    } else if (actualType === 'MusicGeneratorNode') {
+      addMusicGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (actualType === 'LyricsGeneratorNode') {
+      addLyricsGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (actualType === 'TTSGeneratorNode') {
+      addTTSGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (actualType === 'CoverGeneratorNode') {
+      addCoverGeneratorPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
+    } else if (actualType === 'LLMTextGenNode') {
+      addLLMTextGenPipeline(addNode, { x: pos.x - 70, y: pos.y - 15 });
     } else {
-      addNode({ id: getNodeId(), type: nodeType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
+      addNode({ id: getNodeId(), type: actualType, position: { x: pos.x - 70, y: pos.y - 15 }, data: {} });
     }
   }, [addNode]);
 
@@ -1412,6 +1472,122 @@ export default function NodeCanvas() {
           ))}
         </div>
       )}
+
+      {/* Ctrl + Space Quick Search menu */}
+      {showQuickSearch && (
+        <React.Fragment>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            onClick={() => setShowQuickSearch(false)}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              left: Math.max(10, Math.min(window.innerWidth - 320, quickSearchPos.x - 150)),
+              top: Math.max(10, Math.min(window.innerHeight - 350, quickSearchPos.y - 30)),
+              zIndex: 1000,
+              background: 'rgba(10,3,20,0.98)',
+              border: '1px solid rgba(176,38,255,0.4)',
+              borderRadius: 16,
+              padding: 10,
+              width: 300,
+              backdropFilter: 'blur(24px)',
+              boxShadow: '0 12px 50px rgba(0,0,0,0.8), 0 0 20px rgba(176,38,255,0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 8px 8px', fontSize: 11, fontWeight: 700, color: '#b026ff', letterSpacing: '0.05em' }}>
+              <span>🚀 QUICK SEARCH</span>
+            </div>
+            <input
+              autoFocus
+              value={quickSearchQuery}
+              onChange={(e) => {
+                setQuickSearchQuery(e.target.value);
+                setSelectedQuickSearchIndex(0);
+              }}
+              placeholder="Type node name..."
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowQuickSearch(false);
+                } else if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setSelectedQuickSearchIndex(prev => 
+                    prev < filteredQuickSearchNodes.length - 1 ? prev + 1 : prev
+                  );
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setSelectedQuickSearchIndex(prev => (prev > 0 ? prev - 1 : 0));
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const item = filteredQuickSearchNodes[selectedQuickSearchIndex];
+                  if (item) {
+                    handleQuickSearchSelect(item);
+                  }
+                }
+              }}
+              style={{
+                width: '100%', padding: '10px 12px', marginBottom: 8, boxSizing: 'border-box',
+                borderRadius: 10, border: '1px solid rgba(176,38,255,0.3)',
+                background: 'rgba(176,38,255,0.08)',
+                color: '#fff', fontSize: 13, outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              {filteredQuickSearchNodes.length === 0 ? (
+                <div style={{ padding: '16px 10px', textAlign: 'center', fontSize: 11, color: '#6b6880' }}>
+                  No matching nodes found
+                </div>
+              ) : (
+                filteredQuickSearchNodes.map((item, i) => {
+                  const isSelected = i === selectedQuickSearchIndex;
+                  return (
+                    <div
+                      key={`${item.type}-${i}`}
+                      onClick={() => handleQuickSearchSelect(item)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        background: isSelected ? 'rgba(176,38,255,0.18)' : 'transparent',
+                        border: isSelected ? '1px solid rgba(176,38,255,0.3)' : '1px solid transparent',
+                        transition: 'background 0.1s, border 0.1s',
+                      }}
+                      onMouseEnter={() => setSelectedQuickSearchIndex(i)}
+                    >
+                      <div style={{
+                        width: 24, height: 24, borderRadius: 6,
+                        background: `${item.color}20`, border: `1px solid ${item.color}40`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, flexShrink: 0,
+                      }}>
+                        {item.icon}
+                      </div>
+                      <div style={{ flexGrow: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{item.label}</div>
+                        <div style={{ fontSize: 9, color: '#6b6880', marginTop: 1 }}>
+                          {item.section}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <span style={{ fontSize: 10, color: '#b026ff', fontWeight: 600 }}>↵ Enter</span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div style={{ borderTop: '1px solid rgba(176,38,255,0.1)', marginTop: 6, padding: '8px 8px 0', fontSize: 9, color: '#6b6880', display: 'flex', justifyContent: 'space-between' }}>
+              <span>↑↓ Navigation</span>
+              <span>Esc to close</span>
+            </div>
+          </div>
+        </React.Fragment>
+      )}
     </div>
   );
 }
@@ -1431,6 +1607,8 @@ const QUICK_ADD_SECTIONS = [
       { type: 'LyricsInputNode', label: 'Lyrics', icon: '\uD83D\uDCDD', color: '#a855f7' },
       { type: 'StoryConceptNode', label: 'Story Concept', icon: '📝', color: '#f59e0b' },
       { type: 'StyleThemeNode', label: 'Style & Theme', icon: '🎨', color: '#b026ff' },
+      { type: 'VisualStylesNode', label: 'Visual Style Presets', icon: '🎨', color: '#ec4899' },
+      { type: 'YouTubeAudioNode', label: 'YouTube Audio Source', icon: '🎵', color: '#ef4444' },
       { type: 'SubjectLocationsNode', label: 'Subject & Locations', icon: '📍', color: '#3b82f6' },
     ],
   },
@@ -1449,6 +1627,7 @@ const QUICK_ADD_SECTIONS = [
       { type: 'VideoLoRASettingsNode', label: 'Video LoRA Settings', icon: '🧬', color: '#4c1d95' },
       { type: 'VideoAdvancedSettingsNode', label: 'Video Advanced Settings', icon: '🛠️', color: '#1e1b4b' },
       { type: 'VideoAudioCombinerNode', label: 'Video & Audio Combiner', icon: '🎬', color: '#10b981' },
+      { type: 'VideoUpscalerNode', label: 'Video Upscaler', icon: '🚀', color: '#8b5cf6' },
       { type: 'ImageGeneratorNode', label: 'Image Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
     ],
   },

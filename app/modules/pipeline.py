@@ -157,6 +157,69 @@ def post_process_concept_prompts(concepts_file_path: str, params: dict):
     except Exception as e:
         logger.error("Failed to write updated concept prompts: %s", e)
 
+def download_youtube_audio(url: str, output_dir: str) -> str:
+    """Download audio from a YouTube link using yt-dlp, with caching."""
+    import yt_dlp
+    from urllib.parse import urlparse, parse_qs
+    
+    # Clean the URL to extract only the video ID if it's a YouTube link
+    try:
+        parsed = urlparse(url)
+        if "youtube.com" in parsed.netloc:
+            qs = parse_qs(parsed.query)
+            if "v" in qs:
+                url = f"https://www.youtube.com/watch?v={qs['v'][0]}"
+        elif "youtu.be" in parsed.netloc:
+            video_id = parsed.path.strip("/")
+            url = f"https://www.youtube.com/watch?v={video_id}"
+    except Exception as url_err:
+        logger.warning("Failed to clean YouTube URL: %s", url_err)
+
+    # Clean URL and get video ID
+    ydl_opts_info = {'quiet': True, 'no_warnings': True, 'noplaylist': True}
+    with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+        info = ydl.extract_info(url, download=False)
+        video_id = info.get('id')
+        
+    if video_id:
+        for f in os.listdir(output_dir):
+            if f.startswith(f"youtube_{video_id}."):
+                existing_path = os.path.join(output_dir, f)
+                logger.info("Using cached YouTube audio: %s", existing_path)
+                return existing_path
+
+    # Download if not cached
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(output_dir, 'youtube_%(id)s.%(ext)s'),
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+    }
+    
+    try:
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+            return os.path.join(output_dir, f"youtube_{video_id}.mp3")
+    except Exception as e:
+        logger.warning("Failed to extract mp3 using ffmpeg, falling back to raw download: %s", e)
+        ydl_opts.pop('postprocessors', None)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            if os.path.exists(filename):
+                return filename
+            for ext in ('m4a', 'webm', 'opus', 'mp3', 'wav'):
+                check_path = os.path.join(output_dir, f"youtube_{video_id}.{ext}")
+                if os.path.exists(check_path):
+                    return check_path
+            raise RuntimeError(f"Could not locate downloaded YouTube file for ID {video_id}")
+
 
 class PipelineRunner:
     """Orchestrates multi-step generation pipelines across ACE audio,
@@ -173,6 +236,21 @@ class PipelineRunner:
         self.comfy = comfy_client
         self.editor = workflow_editor
         self.input_mgr = input_manager
+
+    def _resolve_youtube_audio(self, audio_path: str) -> str:
+        if not audio_path:
+            return audio_path
+        if "youtube.com" in audio_path or "youtu.be" in audio_path:
+            logger.info("Resolving YouTube audio link: %s", audio_path)
+            input_dir = self.input_mgr.base if self.input_mgr else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "comfyui", "input"))
+            try:
+                resolved = download_youtube_audio(audio_path, input_dir)
+                logger.info("YouTube link resolved to: %s", resolved)
+                return resolved
+            except Exception as e:
+                logger.error("Failed to download YouTube audio: %s", e, exc_info=True)
+                raise RuntimeError(f"Failed to fetch YouTube audio: {e}")
+        return audio_path
 
     async def run_text2audio(self, params: dict) -> str:
         """Generate audio from text description using the ACE text2music workflow.
@@ -449,6 +527,9 @@ class PipelineRunner:
         audio_path = params.get("audio_path", "")
         if not audio_path:
             raise ValueError("audio_path is required for LLM audio analysis")
+
+        # Resolve YouTube URLs dynamically
+        audio_path = self._resolve_youtube_audio(audio_path)
 
         # Resolve project:// paths to local filesystem paths
         if audio_path.startswith("project://"):
@@ -768,9 +849,38 @@ class PipelineRunner:
         """
         workflow = self.editor.get_workflow(params.get("workflow", "prompt_creator"))
 
+        # Upload audio to ComfyUI if a local path is provided
+        audio_path = params.get("audio_path")
+        audio_path = self._resolve_youtube_audio(audio_path)
+        if audio_path and os.path.exists(audio_path):
+            uploaded_name = await self.comfy.upload_audio(audio_path)
+            # Build the absolute path to the uploaded file in ComfyUI's input dir.
+            # self.input_mgr.base is the ComfyUI input directory path.
+            input_base = self.input_mgr.base if (self.input_mgr and self.input_mgr.base) else ""
+            if input_base:
+                abs_audio_path = os.path.realpath(os.path.join(input_base, uploaded_name))
+            else:
+                # Fallback: use COMFYUI_INPUT_DIR env var
+                env_input_dir = os.environ.get("COMFYUI_INPUT_DIR", "")
+                if env_input_dir:
+                    abs_audio_path = os.path.realpath(os.path.join(env_input_dir, uploaded_name))
+                else:
+                    abs_audio_path = uploaded_name
+            params["audio_path"] = abs_audio_path
+            logger.info("Uploaded prompt creator audio %s → ComfyUI input: %s (base=%s)",
+                        audio_path, abs_audio_path, input_base)
+
+
         self.editor.inject_prompt_creator_params(
             workflow, params, input_manager=self.input_mgr
         )
+
+        # Write enqueued workflow to a debug file for troubleshooting
+        try:
+            with open(os.path.join(os.path.dirname(__file__), "..", "debug_prompt_creator_workflow.json"), "w", encoding="utf-8") as debug_f:
+                json.dump(workflow, debug_f, indent=2)
+        except Exception as debug_e:
+            logger.warning("Failed to write debug workflow: %s", debug_e)
 
         prompt_id = await self.comfy.enqueue_workflow(workflow)
         logger.info("Enqueued prompt creator job: prompt_id=%s", prompt_id)
@@ -832,6 +942,7 @@ class PipelineRunner:
 
         if "audio_path" in params:
             ap = params["audio_path"]
+            ap = self._resolve_youtube_audio(ap)
             if os.path.isfile(ap):
                 ap = await self.comfy.upload_audio(ap)
                 ap = os.path.realpath(os.path.join(self.input_mgr.base, ap))
@@ -876,6 +987,7 @@ class PipelineRunner:
 
         if "audio_path" in params:
             ap = params["audio_path"]
+            ap = self._resolve_youtube_audio(ap)
             if os.path.isfile(ap):
                 ap = await self.comfy.upload_audio(ap)
                 ap = os.path.realpath(os.path.join(self.input_mgr.base, ap))
@@ -884,6 +996,41 @@ class PipelineRunner:
         self.editor.inject_t2v_params(workflow, params)
         prompt_id = await self.comfy.enqueue_workflow(workflow)
         logger.info("Enqueued T2V job: prompt_id=%s", prompt_id)
+        return prompt_id
+
+    async def run_upscale(self, params: dict) -> str:
+        """Run the SeedVR2 Video Upscaler workflow.
+
+        Injects input video, upscaling settings, and enqueues.
+
+        Args:
+            params: Dict with keys:
+                - video_path (str): Absolute path to the input video.
+                - resolution (int, optional): Output resolution height.
+                - batch_size (int, optional): Batch size.
+                - temporal_overlap (int, optional): Temporal overlap size.
+
+        Returns:
+            The ComfyUI prompt_id.
+        """
+        workflow = self.editor.get_workflow(params.get("workflow", "seedvr2_upscale"))
+
+        if "video_path" in params:
+            vp = params["video_path"]
+            if os.path.isfile(vp):
+                # Copy or upload the video to input folder so ComfyUI LoadVideo can read it
+                filename = os.path.basename(vp)
+                dest = os.path.realpath(os.path.join(self.input_mgr.base, filename))
+                if os.path.realpath(vp) != dest:
+                    import shutil
+                    logger.info("Copying upscale input video %s to ComfyUI input folder %s", vp, dest)
+                    shutil.copy2(vp, dest)
+                # LoadVideo node needs the relative name under input folder
+                params["video_path"] = filename
+
+        self.editor.inject_upscale_params(workflow, params)
+        prompt_id = await self.comfy.enqueue_workflow(workflow)
+        logger.info("Enqueued Video Upscaler job: prompt_id=%s", prompt_id)
         return prompt_id
 
     def _extract_output_paths(

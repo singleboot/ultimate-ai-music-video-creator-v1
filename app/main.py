@@ -4,12 +4,14 @@ Provides a REST API bridge between a Next.js frontend and a running ComfyUI
 instance for AI-powered music video generation.
 """
 
+import asyncio
 import logging
 import os
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -36,11 +38,16 @@ COMFYUI_INPUT_DIR = os.environ.get(
     "COMFYUI_INPUT_DIR",
     comfy_in_default if os.path.exists(comfy_in_default) else os.path.join(PROJECT_ROOT, "input"),
 )
+if os.path.exists(COMFYUI_INPUT_DIR):
+    COMFYUI_INPUT_DIR = os.path.realpath(COMFYUI_INPUT_DIR)
+
 COMFYUI_OUTPUT_DIR = os.environ.get(
     "COMFYUI_OUTPUT_DIR",
     os.path.join(PROJECT_ROOT, "comfyui", "output"),
 )
-OUTPUT_DIR = os.path.realpath(COMFYUI_OUTPUT_DIR) if os.path.exists(COMFYUI_OUTPUT_DIR) else COMFYUI_OUTPUT_DIR
+if os.path.exists(COMFYUI_OUTPUT_DIR):
+    COMFYUI_OUTPUT_DIR = os.path.realpath(COMFYUI_OUTPUT_DIR)
+OUTPUT_DIR = COMFYUI_OUTPUT_DIR
 
 # ---------------------------------------------------------------------------
 # Global state (set up during lifespan)
@@ -49,6 +56,13 @@ comfy_client: ComfyUIClient = None
 workflow_editor: WorkflowEditor = None
 input_manager: InputManager = None
 pipeline_runner: PipelineRunner = None
+
+# ---------------------------------------------------------------------------
+# Async video job registry
+# ---------------------------------------------------------------------------
+# Maps job_id -> {"status": "pending"|"running"|"completed"|"failed",
+#                 "message": str, "outputs": list, "error": str}
+video_jobs: dict[str, dict] = {}
 
 
 @asynccontextmanager
@@ -159,6 +173,13 @@ class OpenProjectRequest(BaseModel):
 class SaveWorkflowRequest(BaseModel):
     """Request to save project workflow."""
     project_path: str
+    workflow: dict
+
+
+class SaveProjectAsRequest(BaseModel):
+    """Request to duplicate/save project under a different name."""
+    project_path: str
+    new_name: str
     workflow: dict
 
 
@@ -390,7 +411,7 @@ def _copy_assets_to_project(params: dict, urls: list[str]) -> list[str]:
 
 
 class CombineRequest(BaseModel):
-    video_url: str
+    video_url: Union[str, list[str]]
     audio_url: str
     project_path: Optional[str] = None
 
@@ -404,6 +425,9 @@ async def generate_combine(req: CombineRequest):
     import time
     
     def resolve_path(url: str) -> str:
+        if url.startswith("project://") and req.project_path:
+            rel = url[len("project://"):]
+            return os.path.realpath(os.path.join(req.project_path, rel))
         if url.startswith("http://") or url.startswith("https://"):
             parsed = urllib.parse.urlparse(url)
             path_part = parsed.path
@@ -413,6 +437,12 @@ async def generate_combine(req: CombineRequest):
             if path_part.startswith("/input/"):
                 rel = path_part[len("/input/"):]
                 return os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+            if "/api/projects/asset" in path_part or "asset" in parsed.query:
+                query_params = urllib.parse.parse_qs(parsed.query)
+                proj = query_params.get("project_path", [""])[0] or query_params.get("projectPath", [""])[0]
+                asset = query_params.get("asset", [""])[0] or query_params.get("name", [""])[0]
+                if proj and asset:
+                    return os.path.realpath(os.path.join(proj, asset))
         if os.path.isabs(url):
             return url
         p_out = os.path.join(OUTPUT_DIR, url)
@@ -423,32 +453,64 @@ async def generate_combine(req: CombineRequest):
             return p_in
         return url
 
-    v_path = resolve_path(req.video_url)
+    if isinstance(req.video_url, list):
+        v_paths = [resolve_path(v) for v in req.video_url]
+    else:
+        v_paths = [resolve_path(req.video_url)]
+
     a_path = resolve_path(req.audio_url)
     
-    if not os.path.exists(v_path):
-        raise HTTPException(status_code=400, detail=f"Video file not found: {v_path}")
+    for vp in v_paths:
+        if not os.path.exists(vp):
+            raise HTTPException(status_code=400, detail=f"Video file not found: {vp}")
     if not os.path.exists(a_path):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {a_path}")
         
-    stem, ext = os.path.splitext(os.path.basename(v_path))
+    stem, ext = os.path.splitext(os.path.basename(v_paths[0]))
     out_name = f"{stem}_combined_{int(time.time())}{ext}"
     out_path = os.path.join(OUTPUT_DIR, out_name)
     
     if not shutil.which("ffmpeg"):
         raise HTTPException(status_code=500, detail="ffmpeg not found on server system")
         
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", v_path,
-        "-i", a_path,
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-shortest",
-        out_path
-    ]
-    
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if len(v_paths) > 1:
+        # Create concat text file
+        list_file = os.path.join(OUTPUT_DIR, f"concat_list_{int(time.time())}.txt")
+        with open(list_file, "w", encoding="utf-8") as f:
+            for vp in v_paths:
+                # Escape single quotes in path if any
+                safe_vp = vp.replace("'", "'\\''")
+                f.write(f"file '{safe_vp}'\n")
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", list_file,
+            "-i", a_path,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-shortest",
+            out_path
+        ]
+        
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            os.remove(list_file)
+        except OSError:
+            pass
+    else:
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", v_paths[0],
+            "-i", a_path,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-shortest",
+            out_path
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        
     if proc.returncode != 0:
         logger.error("FFmpeg merge failed: %s", proc.stderr)
         raise HTTPException(status_code=500, detail=f"FFmpeg error: {proc.stderr}")
@@ -646,6 +708,73 @@ async def save_project_workflow(req: SaveWorkflowRequest) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/projects/save-as")
+async def save_project_as(req: SaveProjectAsRequest) -> dict:
+    import shutil
+    if not req.project_path:
+        raise HTTPException(status_code=400, detail="Missing source project path")
+    if not req.new_name or not req.new_name.strip():
+        raise HTTPException(status_code=400, detail="Missing new project name")
+    
+    # Sanitize new project folder name (keep alphanumeric, space, hyphens, underscores)
+    sanitized_name = "".join(c for c in req.new_name if c.isalnum() or c in (" ", "-", "_")).strip()
+    if not sanitized_name:
+        raise HTTPException(status_code=400, detail="Invalid characters in project name")
+        
+    parent_path = os.path.dirname(os.path.abspath(req.project_path))
+    new_project_path = os.path.join(parent_path, sanitized_name)
+    
+    if os.path.exists(new_project_path):
+        raise HTTPException(status_code=400, detail=f"Target project folder already exists: {new_project_path}")
+        
+    try:
+        # Copy entire directory recursively
+        shutil.copytree(req.project_path, new_project_path)
+        
+        # Write/Update project.json in the target directory
+        meta_path = os.path.join(new_project_path, "project.json")
+        metadata = {}
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+            except Exception:
+                pass
+        
+        metadata["name"] = sanitized_name
+        metadata["path"] = new_project_path
+        metadata["lastOpened"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if "createdAt" not in metadata:
+            metadata["createdAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+            
+        # Update workflow.json in the target directory with the new name
+        workflow_path = os.path.join(new_project_path, "workflow.json")
+        workflow_data = req.workflow.copy()
+        workflow_data["name"] = sanitized_name
+        
+        with open(workflow_path, "w", encoding="utf-8") as f:
+            json.dump(workflow_data, f, indent=2)
+            
+        return {
+            "status": "ok",
+            "message": "Project copied and saved successfully",
+            "project_path": new_project_path,
+            "project_name": sanitized_name
+        }
+    except Exception as e:
+        logger.error("Failed to Save As: %s", e)
+        # Attempt to clean up new directory if it was partially created
+        if os.path.exists(new_project_path):
+            try:
+                shutil.rmtree(new_project_path)
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/projects/open-folder")
 async def open_project_folder(req: OpenFolderRequest) -> dict:
     if not req.path:
@@ -803,12 +932,96 @@ async def debug_inject(workflow_name: str, body: dict) -> dict:
     return {"status": "ok", "workflow_name": workflow_name, "params_received": params, "node_inputs": summary}
 
 
+@app.post("/api/debug/workflow")
+async def debug_workflow(request: Request) -> dict:
+    """Return the modified ComfyUI workflow JSON after parameter injection (does NOT enqueue)."""
+    try:
+        body = await request.json()
+        gen_type = body.get("type") or body.get("mode") or "t2v"
+        params = body.get("params") or {}
+        
+        workflow_name = params.get("workflow", gen_type)
+        if gen_type == "t2v":
+            workflow = workflow_editor.get_workflow(workflow_name or "t2v")
+            workflow_editor.inject_t2v_params(workflow, params)
+        elif gen_type == "i2v":
+            workflow = workflow_editor.get_workflow(workflow_name or "i2v")
+            workflow_editor.inject_i2v_params(workflow, params)
+        elif gen_type == "prompt_creator":
+            workflow = workflow_editor.get_workflow(workflow_name or "prompt_creator")
+            workflow_editor.inject_prompt_creator_params(workflow, params)
+        elif gen_type in ("ace_text2music_v2", "text2audio", "music_generator"):
+            workflow_name = params.get("workflow", "ace_text2music_v2")
+            workflow = workflow_editor.get_workflow(workflow_name)
+            lyrics = params.get("lyrics", "")
+            if not lyrics.strip():
+                genre = params.get("genre", "pop")
+                lyrics = f"[{genre} composition]\n"
+            is_v2 = "94" in workflow and workflow["94"].get("class_type") == "TextEncodeAceStepAudio1.5"
+            default_duration = 30 if is_v2 else 180
+            inject_params = {
+                "lyrics": lyrics,
+                "genre": params.get("genre", ""),
+                "language": params.get("language", "en"),
+                "duration": params.get("duration", default_duration),
+                "seed": params.get("seed", 0),
+            }
+            for key in ("bpm", "cfg_scale", "temperature", "top_p", "top_k", "min_p", "keyscale", "steps", "sampling_shift"):
+                if key in params:
+                    inject_params[key] = params[key]
+            if is_v2:
+                workflow_editor.inject_ace_text2music_v2_params(workflow, inject_params)
+            else:
+                workflow_editor.inject_ace_text2music_params(workflow, inject_params)
+        elif gen_type in ("ace_audio_cover", "audio_cover", "cover_generator"):
+            workflow = workflow_editor.get_workflow("ace_audio_cover")
+            inject_params = {
+                "genre": params.get("genre", ""),
+                "language": params.get("language", "en"),
+                "duration": params.get("duration", 30),
+                "seed": params.get("seed", 0),
+            }
+            for key in ("bpm", "cfg_scale", "temperature", "top_p", "top_k", "min_p", "keyscale", "steps", "sampling_shift"):
+                if key in params:
+                    inject_params[key] = params[key]
+            workflow_editor.inject_ace_cover_params(workflow, inject_params)
+        elif gen_type == "tts":
+            try:
+                workflow = workflow_editor.get_workflow(params.get("workflow", "tts"))
+            except ValueError:
+                workflow = {}
+            if "text" in params:
+                text_node_id = next(
+                    (nid for nid, node in workflow.items()
+                     if node.get("class_type") == "TextGenerate"),
+                    None
+                )
+                if text_node_id:
+                    workflow_editor.set_node_input(
+                        workflow, text_node_id, "prompt", params["text"]
+                    )
+        elif gen_type == "llm_audio_analysis":
+            workflow = workflow_editor.get_workflow("llm_gemma4_text_gen_v1")
+            workflow_editor.inject_llm_text_gen_params(workflow, params)
+        else:
+            workflow = workflow_editor.get_workflow(gen_type)
+            
+        return {"workflow": workflow}
+    except Exception as e:
+        logger.error("Failed to build debug workflow: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
 @app.post("/api/generate")
 async def generate(
     request: Request,
     type: Optional[str] = Form(None),
     audio_file: Optional[UploadFile] = File(None),
     image_files: Optional[list[UploadFile]] = File(None),
+    video_file: Optional[UploadFile] = File(None),
     prompt: Optional[str] = Form(None),
     temperature: Optional[str] = Form(None),
     top_k: Optional[str] = Form(None),
@@ -856,7 +1069,7 @@ async def generate(
         raise HTTPException(
             status_code=400,
             detail="Missing 'type' field. Must be one of: text2audio, "
-            "audio_cover, tts, prompt_creator, llm_audio_analysis, i2v, t2v, full_pipeline",
+            "audio_cover, tts, prompt_creator, llm_audio_analysis, i2v, t2v, upscale, full_pipeline",
         )
 
     # Handle file uploads
@@ -877,6 +1090,14 @@ async def generate(
                 f.write(content)
             image_paths.append(save_path)
         params.setdefault("images", image_paths)
+
+    if video_file is not None:
+        save_path = os.path.join(COMFYUI_INPUT_DIR, video_file.filename)
+        content = await video_file.read()
+        with open(save_path, "wb") as f:
+            f.write(content)
+        params.setdefault("video_path", save_path)
+        params.setdefault("video_file", video_file.filename)
 
     try:
         # Record timestamp before enqueueing, then scan for new files after completion
@@ -912,6 +1133,43 @@ async def generate(
             return {"status": "completed", **result}
 
         elif gen_type == "prompt_creator":
+            logger.info("prompt_creator endpoint params: %s", params)
+            project_path = params.get("project_path") or params.get("projectPath")
+            if project_path:
+                fallbacks = {
+                    "lyrics": "lyrics/full_lyrics.txt",
+                    "theme_style": "lyrics/themestyle.txt",
+                    "story_concept": "lyrics/storyconcept.txt",
+                    "subject_scenes": "lyrics/subjectsandscenes.txt",
+                }
+                for key, rel_path in fallbacks.items():
+                    if not params.get(key):
+                        file_path = os.path.join(project_path, rel_path)
+                        if os.path.exists(file_path):
+                            try:
+                                with open(file_path, "r", encoding="utf-8") as f:
+                                    params[key] = f.read()
+                                logger.info("Backend fallback loaded %s from %s", key, file_path)
+                            except Exception as e:
+                                logger.warning("Failed to load fallback for %s from %s: %s", key, file_path, e)
+            audio_path = params.get("audio_path") or params.get("audio_file") or params.get("audio")
+            if audio_path:
+                if audio_path.startswith("project://"):
+                    project_path = params.get("project_path") or params.get("projectPath")
+                    if project_path:
+                        rel = audio_path[len("project://"):]
+                        audio_path = os.path.realpath(os.path.join(project_path, rel))
+                elif audio_path.startswith("http://") or audio_path.startswith("https://") or audio_path.startswith("/output/") or audio_path.startswith("/input/"):
+                    import urllib.parse
+                    path_part = urllib.parse.urlparse(audio_path).path if audio_path.startswith("http") else audio_path
+                    if path_part.startswith("/output/"):
+                        rel = path_part[len("/output/"):]
+                        audio_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+                    elif path_part.startswith("/input/"):
+                        rel = path_part[len("/input/"):]
+                        audio_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+                params["audio_path"] = audio_path
+
             prompt_id = await pipeline_runner.run_prompt_creator(params)
             history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 1800))
             
@@ -963,7 +1221,7 @@ async def generate(
                 
                 params["audio_path"] = audio_path
                 base_name = os.path.splitext(os.path.basename(audio_path))[0]
-                if os.path.isdir(COMFYUI_OUTPUT_DIR):
+                if os.path.isdir(COMFYUI_OUTPUT_DIR) and not params.get("skip_clear", False):
                     for folder_name in os.listdir(COMFYUI_OUTPUT_DIR):
                         if folder_name == base_name or folder_name.startswith(base_name + "_"):
                             run_folder = os.path.join(COMFYUI_OUTPUT_DIR, folder_name)
@@ -1010,7 +1268,7 @@ async def generate(
                 for path in job_paths:
                     rel = os.path.relpath(path, COMFYUI_OUTPUT_DIR)
                     parts = rel.split(os.sep)
-                    if len(parts) > 1:
+                    if len(parts) > 1 and parts[0] != "..":
                         run_folder = os.path.join(COMFYUI_OUTPUT_DIR, parts[0])
                         break
                 
@@ -1092,11 +1350,44 @@ async def generate(
                 for root, _, files in os.walk(run_folder):
                     for file in files:
                         if file.lower().endswith((".mp4", ".webm", ".mov", ".avi", ".gif")):
+                            if "-audio." in file.lower():
+                                continue
                             rel_path = os.path.relpath(os.path.join(root, file), COMFYUI_OUTPUT_DIR)
                             url_path = f"/output/{rel_path.replace(os.sep, '/')}"
                             output_urls.append(url_path)
             
             output_urls = abs_urls(output_urls)
+            output_urls = _copy_assets_to_project(params, output_urls)
+            return {
+                "status": "completed",
+                "prompt_id": prompt_id,
+                "outputs": output_urls,
+                "url": (output_urls + [""])[0],
+                "video_url": output_urls[0] if output_urls else None
+            }
+
+        elif gen_type == "upscale":
+            video_path = params.get("video_path") or params.get("video_file") or params.get("video")
+            if video_path:
+                if video_path.startswith("project://"):
+                    project_path = params.get("project_path") or params.get("projectPath")
+                    if project_path:
+                        rel = video_path[len("project://"):]
+                        video_path = os.path.realpath(os.path.join(project_path, rel))
+                elif video_path.startswith("http://") or video_path.startswith("https://") or video_path.startswith("/output/") or video_path.startswith("/input/"):
+                    import urllib.parse
+                    path_part = urllib.parse.urlparse(video_path).path if video_path.startswith("http") else video_path
+                    if path_part.startswith("/output/"):
+                        rel = path_part[len("/output/"):]
+                        video_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+                    elif path_part.startswith("/input/"):
+                        rel = path_part[len("/input/"):]
+                        video_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+                params["video_path"] = video_path
+
+            prompt_id = await pipeline_runner.run_upscale(params)
+            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 1800))
+            output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".mp4", ".webm", ".mov", ".avi")))
             output_urls = _copy_assets_to_project(params, output_urls)
             return {
                 "status": "completed",
@@ -1116,7 +1407,7 @@ async def generate(
                 status_code=400,
             detail=f"Unknown generation type '{gen_type}'. Valid types: "
             f"text2audio, audio_cover, tts, prompt_creator, "
-            f"llm_audio_analysis, i2v, t2v, full_pipeline",
+            f"llm_audio_analysis, i2v, t2v, upscale, full_pipeline",
             )
 
     except ValueError as e:
@@ -1186,13 +1477,437 @@ async def get_job_status(prompt_id: str) -> dict:
 
 @app.post("/api/cancel/{prompt_id}")
 async def cancel_job(prompt_id: str) -> dict:
-    """Cancel a running or pending job by prompt_id."""
+    """Cancel a running or pending job by prompt_id, or cancel all active jobs if prompt_id is 'active'."""
     try:
-        await comfy_client.cancel_prompt(prompt_id)
-        await comfy_client.interrupt()
-        return {"status": "ok", "prompt_id": prompt_id, "message": "Job cancelled"}
+        # Cancel all active async video jobs in background
+        cancelled_video_jobs = []
+        for jid, job in video_jobs.items():
+            if job.get("status") in ("running", "pending"):
+                job["status"] = "cancelled"
+                job["message"] = "Job cancelled by user"
+                cancelled_video_jobs.append(jid)
+
+        if prompt_id in ("active", "current", "all"):
+            cancelled_ids = await comfy_client.cancel_all_prompts()
+            return {
+                "status": "ok",
+                "cancelled_prompts": cancelled_ids,
+                "cancelled_video_jobs": cancelled_video_jobs,
+                "message": "All active and pending jobs cancelled"
+            }
+        else:
+            await comfy_client.cancel_prompt(prompt_id)
+            await comfy_client.interrupt()
+            return {
+                "status": "ok",
+                "prompt_id": prompt_id,
+                "cancelled_video_jobs": cancelled_video_jobs,
+                "message": f"Job {prompt_id} cancelled"
+            }
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.post("/api/generate/video/cancel/{job_id}")
+async def cancel_video_job(job_id: str) -> dict:
+    """Cancel an active async multi-chunk video generation job."""
+    job = video_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    
+    job["status"] = "cancelled"
+    job["message"] = "Job cancellation requested"
+    
+    prompt_id = job.get("prompt_id")
+    if prompt_id:
+        try:
+            await comfy_client.cancel_prompt(prompt_id)
+            await comfy_client.interrupt()
+        except Exception as e:
+            logger.error("Failed to cancel prompt %s: %s", prompt_id, e)
+            
+    return {"status": "ok", "job_id": job_id, "message": "Video job cancellation initiated"}
+
+
+
+# ---------------------------------------------------------------------------
+# Async video generation endpoints (non-blocking)
+# ---------------------------------------------------------------------------
+
+class VideoStartRequest(BaseModel):
+    """Request to start an async video generation job."""
+    type: str  # 't2v' or 'i2v'
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+async def _run_video_job(job_id: str, gen_type: str, params: dict, base_url: str) -> None:
+    """Background task that runs the full multi-chunk video generation loop."""
+    import re
+    import shutil
+
+    video_jobs[job_id]["status"] = "running"
+    video_jobs[job_id]["message"] = "Starting video generation..."
+
+    try:
+        start_time = time.time()
+
+        if gen_type == "upscale":
+            video_path = params.get("video_path") or params.get("video_file") or params.get("video")
+            logger.info(f"DEBUG upscale input video_path: {video_path}")
+            
+            if not video_path:
+                video_jobs[job_id].update({
+                    "status": "failed",
+                    "error": "No input video provided. Please connect a video to the Upscaler node.",
+                    "message": "Failed: Missing input video"
+                })
+                return
+
+            if video_path.startswith("project://"):
+                project_path = params.get("project_path") or params.get("projectPath")
+                if project_path:
+                    rel = video_path[len("project://"):]
+                    video_path = os.path.realpath(os.path.join(project_path, rel))
+            elif video_path.startswith("http://") or video_path.startswith("https://") or video_path.startswith("/output/") or video_path.startswith("/input/") or video_path.startswith("/api/projects/asset"):
+                import urllib.parse
+                parsed = urllib.parse.urlparse(video_path)
+                path_part = parsed.path if video_path.startswith("http") else parsed.path or video_path
+                if path_part.startswith("/output/"):
+                    rel = path_part[len("/output/"):]
+                    video_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+                elif path_part.startswith("/input/"):
+                    rel = path_part[len("/input/"):]
+                    video_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+                elif path_part.startswith("/api/projects/asset"):
+                    query = urllib.parse.parse_qs(parsed.query)
+                    if "path" in query:
+                        video_path = urllib.parse.unquote(query["path"][0])
+            
+            logger.info(f"DEBUG upscale resolved video_path: {video_path}")
+
+            if video_path and os.path.exists(video_path):
+                video_basename = os.path.basename(video_path)
+                target_video = os.path.join(COMFYUI_INPUT_DIR, video_basename)
+                if os.path.realpath(video_path) != os.path.realpath(target_video):
+                    import shutil
+                    try:
+                        shutil.copy2(video_path, target_video)
+                        logger.info(f"Copied video to ComfyUI input: {target_video}")
+                    except Exception as e:
+                        logger.warning(f"Failed to copy video {video_path} to input dir: {e}")
+                params["video_path"] = video_basename
+            else:
+                params["video_path"] = os.path.basename(video_path) if video_path else ""
+
+            prompt_id = await pipeline_runner.run_upscale(params)
+            video_jobs[job_id]["prompt_id"] = prompt_id
+            history = await comfy_client.wait_for_job(prompt_id, timeout=params.get("timeout", 3600), check_cancelled=lambda: video_jobs[job_id].get("status") == "cancelled")
+            
+            if video_jobs[job_id].get("status") == "cancelled":
+                return
+            
+            output_urls = abs_urls(_scan_output_dir(OUTPUT_DIR, start_time, (".mp4", ".webm", ".mov", ".avi")))
+            output_urls = _copy_assets_to_project(params, output_urls)
+            
+            video_jobs[job_id].update({
+                "status": "completed",
+                "message": "Upscale completed successfully",
+                "outputs": output_urls,
+                "video_url": output_urls[0] if output_urls else None
+            })
+            return
+
+        # Resolve audio_path URL -> local path
+        audio_path = params.get("audio_path") or params.get("audio_file") or params.get("audio")
+        if audio_path:
+            if audio_path.startswith("project://"):
+                project_path = params.get("project_path") or params.get("projectPath")
+                if project_path:
+                    rel = audio_path[len("project://"):]
+                    audio_path = os.path.realpath(os.path.join(project_path, rel))
+            elif audio_path.startswith("http://") or audio_path.startswith("https://") or audio_path.startswith("/output/") or audio_path.startswith("/input/") or audio_path.startswith("/api/projects/asset"):
+                import urllib.parse
+                parsed = urllib.parse.urlparse(audio_path)
+                path_part = parsed.path if audio_path.startswith("http") else parsed.path or audio_path
+                if path_part.startswith("/output/"):
+                    rel = path_part[len("/output/"):]
+                    audio_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+                elif path_part.startswith("/input/"):
+                    rel = path_part[len("/input/"):]
+                    audio_path = os.path.realpath(os.path.join(COMFYUI_INPUT_DIR, urllib.parse.unquote(rel)))
+                elif path_part.startswith("/api/projects/asset"):
+                    query = urllib.parse.parse_qs(parsed.query)
+                    if "path" in query and "asset" in query:
+                        audio_path = os.path.realpath(os.path.join(query["path"][0], query["asset"][0]))
+            params["audio_path"] = audio_path
+
+            # Clear previous run folder for clean slate
+            base_name = os.path.splitext(os.path.basename(audio_path))[0]
+            if os.path.isdir(COMFYUI_OUTPUT_DIR) and not params.get("skip_clear", False):
+                for folder_name in os.listdir(COMFYUI_OUTPUT_DIR):
+                    if folder_name == base_name or folder_name.startswith(base_name + "_"):
+                        run_folder = os.path.join(COMFYUI_OUTPUT_DIR, folder_name)
+                        if os.path.isdir(run_folder):
+                            logger.info("[job %s] Clearing previous run folder: %s", job_id, run_folder)
+                            for sub in ("vrgdg_temp", "remake"):
+                                sub_path = os.path.join(run_folder, sub)
+                                if os.path.exists(sub_path):
+                                    try:
+                                        shutil.rmtree(sub_path)
+                                    except Exception as e:
+                                        logger.error("Failed to delete %s: %s", sub_path, e)
+                            for f in os.listdir(run_folder):
+                                f_path = os.path.join(run_folder, f)
+                                if os.path.isfile(f_path) and f.lower().endswith((".mp4", ".webm", ".avi", ".mov", ".png", ".jpg", ".jpeg", ".json", ".txt")):
+                                    try:
+                                        os.remove(f_path)
+                                    except Exception as e:
+                                        logger.error("Failed to remove %s: %s", f_path, e)
+
+        # Enqueue first chunk
+        if gen_type == "t2v":
+            current_prompt_id = await pipeline_runner.run_t2v(params)
+        else:
+            current_prompt_id = await pipeline_runner.run_i2v(params)
+
+        video_jobs[job_id]["prompt_id"] = current_prompt_id
+
+        run_folder = None
+        chunk_num = 1
+
+        while True:
+            # Check for cancellation before processing
+            if video_jobs[job_id].get("status") == "cancelled":
+                logger.info("[job %s] Cancellation detected in loop start. Exiting.", job_id)
+                break
+
+            video_jobs[job_id]["message"] = f"Processing chunk {chunk_num}..."
+            logger.info("[job %s] Waiting for chunk %d (prompt_id=%s)", job_id, chunk_num, current_prompt_id)
+
+            # Wait up to 1 hour per chunk
+            history_entry = await comfy_client.wait_for_job(
+                current_prompt_id,
+                timeout=params.get("timeout", 3600),
+                check_cancelled=lambda: video_jobs[job_id].get("status") == "cancelled"
+            )
+
+            job_paths = pipeline_runner._extract_output_paths(history_entry, COMFYUI_OUTPUT_DIR)
+
+            # Locate run folder
+            for path in job_paths:
+                rel = os.path.relpath(path, COMFYUI_OUTPUT_DIR)
+                parts = rel.split(os.sep)
+                if len(parts) > 1 and parts[0] != "..":
+                    run_folder = os.path.join(COMFYUI_OUTPUT_DIR, parts[0])
+                    break
+
+            if not run_folder:
+                logger.warning("[job %s] Could not resolve run folder from job paths: %s", job_id, job_paths)
+                break
+
+            # Check if more chunks needed
+            should_loop = False
+            use_remake = params.get("use_remake_folder", False)
+            if isinstance(use_remake, str):
+                use_remake = use_remake.upper() in ("ON", "TRUE", "1")
+
+            if use_remake:
+                remake_dir = os.path.join(run_folder, "remake")
+                if os.path.isdir(remake_dir):
+                    remake_files = [f for f in os.listdir(remake_dir) if os.path.isfile(os.path.join(remake_dir, f))]
+                    if remake_files:
+                        should_loop = True
+            else:
+                autoqueue_path = os.path.join(run_folder, "vrgdg_temp", "srt_autoqueue.json")
+                if os.path.exists(autoqueue_path):
+                    try:
+                        with open(autoqueue_path, "r", encoding="utf-8") as f:
+                            state = json.load(f)
+                        total_sets = state.get("total_sets", 1)
+                        indices = []
+                        video_files_count = 0
+                        for f in os.listdir(run_folder):
+                            if f.lower().endswith(("-audio.mp4", "-audio.webm", "-audio.mov", "-audio.avi")):
+                                continue
+                            if not f.lower().endswith((".mp4", ".webm", ".mov", ".avi", ".gif")):
+                                continue
+                            video_files_count += 1
+                            m = re.match(r"^.*_(\d+)_(\d+)(?:_(\d+))?\.(?:mp4|webm|mov|avi|gif)$", f.lower())
+                            if m:
+                                g1, g2, g3 = m.groups()
+                                indices.append(int(g2) if g3 is not None else int(g1))
+                        next_index = max(indices) + 1 if indices else video_files_count
+                        if next_index < total_sets:
+                            should_loop = True
+                            logger.info("[job %s] Completed chunk %d/%d. Looping...", job_id, next_index, total_sets)
+                    except Exception as e:
+                        logger.error("[job %s] Failed to parse autoqueue state: %s", job_id, e)
+
+            if should_loop:
+                if video_jobs[job_id].get("status") == "cancelled":
+                    logger.info("[job %s] Cancellation detected. Exiting before enqueueing next chunk.", job_id)
+                    break
+                chunk_num += 1
+                if gen_type == "t2v":
+                    current_prompt_id = await pipeline_runner.run_t2v(params)
+                else:
+                    current_prompt_id = await pipeline_runner.run_i2v(params)
+                video_jobs[job_id]["prompt_id"] = current_prompt_id
+            else:
+                break
+
+        # Collect output video URLs
+        output_urls = []
+        if run_folder:
+            for root, _, files in os.walk(run_folder):
+                for file in files:
+                    if file.lower().endswith((".mp4", ".webm", ".mov", ".avi", ".gif")):
+                        if "-audio." in file.lower():
+                            continue
+                        rel_path = os.path.relpath(os.path.join(root, file), COMFYUI_OUTPUT_DIR)
+                        url_path = f"{base_url}/output/{rel_path.replace(os.sep, '/')}"
+                        output_urls.append(url_path)
+
+        output_urls = _copy_assets_to_project(params, output_urls)
+
+        video_jobs[job_id].update({
+            "status": "completed",
+            "message": f"Done! Generated {len(output_urls)} clip(s).",
+            "outputs": output_urls,
+            "url": output_urls[0] if output_urls else "",
+            "video_url": output_urls[0] if output_urls else None,
+            "prompt_id": current_prompt_id,
+        })
+        logger.info("[job %s] Completed. %d output(s).", job_id, len(output_urls))
+
+    except Exception as e:
+        logger.error("[job %s] Failed: %s", job_id, e, exc_info=True)
+        if video_jobs[job_id].get("status") == "cancelled":
+            video_jobs[job_id].update({
+                "message": "Job cancelled by user",
+                "error": None,
+                "outputs": [],
+            })
+        else:
+            video_jobs[job_id].update({
+                "status": "failed",
+                "message": str(e),
+                "error": str(e),
+                "outputs": [],
+            })
+
+
+@app.post("/api/generate/video/start")
+async def start_video_job(req: VideoStartRequest, request: Request) -> dict:
+    """Start a video generation job asynchronously and return a job_id immediately.
+    
+    The client should poll /api/generate/video/status/{job_id} to track progress.
+    """
+    gen_type = req.type
+    if gen_type not in ("t2v", "i2v", "upscale"):
+        raise HTTPException(status_code=400, detail="type must be 't2v', 'i2v', or 'upscale'")
+
+    params = dict(req.params)
+    job_id = str(uuid.uuid4())
+    base_url = str(request.base_url).rstrip("/")
+
+    video_jobs[job_id] = {
+        "status": "pending",
+        "message": "Job queued...",
+        "outputs": [],
+        "error": None,
+    }
+
+    # Fire and forget — run the generation loop in the background
+    asyncio.create_task(_run_video_job(job_id, gen_type, params, base_url))
+
+    return {"status": "ok", "job_id": job_id, "message": "Video generation started"}
+
+
+@app.get("/api/generate/video/status/{job_id}")
+async def get_video_job_status(job_id: str) -> dict:
+    """Poll the status of an async video generation job."""
+    job = video_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    return {"job_id": job_id, **job}
+
+
+@app.get("/api/projects/list-video-outputs")
+async def list_video_outputs(video_url: str, project_path: Optional[str] = None) -> dict:
+    """Scan and list all video output files in the same folder as the provided video_url."""
+    import urllib.parse
+    
+    local_path = None
+    if video_url.startswith("project://"):
+        if project_path:
+            rel = video_url[len("project://"):]
+            local_path = os.path.realpath(os.path.join(project_path, rel))
+    elif video_url.startswith("/output/") or "comfyui/output" in video_url or "/output" in video_url:
+        path_part = urllib.parse.urlparse(video_url).path if video_url.startswith("http") else video_url
+        if path_part.startswith("/output/"):
+            rel = path_part[len("/output/"):]
+            local_path = os.path.realpath(os.path.join(OUTPUT_DIR, urllib.parse.unquote(rel)))
+    elif "/api/projects/asset" in video_url:
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(video_url).query)
+        proj = query_params.get("project_path", [""])[0] or query_params.get("projectPath", [""])[0]
+        asset = query_params.get("asset", [""])[0] or query_params.get("name", [""])[0]
+        if proj and asset:
+            local_path = os.path.realpath(os.path.join(proj, asset))
+
+    if not local_path or not os.path.exists(local_path):
+        return {"outputs": []}
+        
+    resolved_dir = os.path.dirname(local_path)
+    is_project_videos_dir = project_path and os.path.realpath(resolved_dir) == os.path.realpath(os.path.join(project_path, "videos"))
+    
+    target_dir = None
+    if is_project_videos_dir:
+        # Fall back to scanning COMFYUI_OUTPUT_DIR for the latest generation run folder containing video chunks
+        latest_run_dir = None
+        latest_mtime = 0
+        if os.path.isdir(COMFYUI_OUTPUT_DIR):
+            for entry in os.listdir(COMFYUI_OUTPUT_DIR):
+                entry_path = os.path.join(COMFYUI_OUTPUT_DIR, entry)
+                if os.path.isdir(entry_path):
+                    try:
+                        # Check if it has video chunks
+                        has_chunks = False
+                        for f in os.listdir(entry_path):
+                            if f.lower().startswith("video_") and f.lower().endswith((".mp4", ".webm", ".mov", ".avi")):
+                                has_chunks = True
+                                break
+                        if has_chunks:
+                            mtime = os.path.getmtime(entry_path)
+                            if mtime > latest_mtime:
+                                latest_mtime = mtime
+                                latest_run_dir = entry_path
+                    except OSError:
+                        continue
+        if latest_run_dir:
+            target_dir = latest_run_dir
+            
+    if not target_dir:
+        target_dir = resolved_dir
+        
+    if not os.path.isdir(target_dir):
+        return {"outputs": []}
+        
+    outputs = []
+    is_project_file = project_path and os.path.realpath(target_dir).startswith(os.path.realpath(project_path))
+    
+    for file in os.listdir(target_dir):
+        if file.lower().endswith((".mp4", ".webm", ".mov", ".avi", ".gif")):
+            if "-audio." in file.lower():
+                continue
+            if is_project_file:
+                rel = os.path.relpath(os.path.join(target_dir, file), project_path).replace(os.sep, "/")
+                outputs.append(f"project://{rel}")
+            else:
+                rel = os.path.relpath(os.path.join(target_dir, file), COMFYUI_OUTPUT_DIR).replace(os.sep, "/")
+                outputs.append(f"/output/{rel}")
+                
+    return {"outputs": sorted(outputs)}
 
 
 @app.get("/api/outputs")

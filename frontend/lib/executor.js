@@ -8,7 +8,7 @@ import {
   combineVideoAudio,
 } from './api';
 
-const API_MAP = {
+export const API_MAP = {
   LyricsGeneratorNode: {
     api: generateLyrics,
     buildParams: (inputs, data) => ({
@@ -106,7 +106,8 @@ const API_MAP = {
         const outputs = inputs.prompts.outputs || [];
         if (outputs.length > 0) {
           const url = outputs[0];
-          conceptsFile = url.substring(url.lastIndexOf('/') + 1);
+          const cleanUrl = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+          conceptsFile = cleanUrl.includes('/output/') ? cleanUrl.substring(cleanUrl.indexOf('/output/') + 8) : cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
         }
       }
       const loraParams = {};
@@ -132,7 +133,8 @@ const API_MAP = {
       const allNodes = useWorkflowStore.getState().nodes;
       const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
       const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
-      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || data.audioUrl || '';
+      const youtubeNode = allNodes.find(n => n.type === 'YouTubeAudioNode' && n.data?.audioUrl);
+      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || youtubeNode?.data?.audioUrl || data.audioUrl || '';
       const projectPath = useWorkflowStore.getState().projectPath;
 
       return {
@@ -141,6 +143,7 @@ const API_MAP = {
         project_path: projectPath,
         prompts: inputs.prompt || (inputs.prompts && typeof inputs.prompts === 'string' ? inputs.prompts : '') || data.prompt || '',
         concepts_file: conceptsFile || inputs.concepts_file || data.concepts_file || undefined,
+        use_sage_attention: !!(inputs.use_sage_attention ?? data.use_sage_attention),
         fps: inputs.fps ?? data.fps ?? 24,
         resolution: inputs.resolution || data.resolution || '1024x576',
         width: inputs.width ?? data.width ?? 1024,
@@ -194,7 +197,8 @@ const API_MAP = {
         const outputs = inputs.prompts.outputs || [];
         if (outputs.length > 0) {
           const url = outputs[0];
-          conceptsFile = url.substring(url.lastIndexOf('/') + 1);
+          const cleanUrl = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+          conceptsFile = cleanUrl.includes('/output/') ? cleanUrl.substring(cleanUrl.indexOf('/output/') + 8) : cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
         }
       }
       const loraParams = {};
@@ -220,7 +224,8 @@ const API_MAP = {
       const allNodes = useWorkflowStore.getState().nodes;
       const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
       const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
-      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || data.audioUrl || '';
+      const youtubeNode = allNodes.find(n => n.type === 'YouTubeAudioNode' && n.data?.audioUrl);
+      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || youtubeNode?.data?.audioUrl || data.audioUrl || '';
       const projectPath = useWorkflowStore.getState().projectPath;
 
       return {
@@ -229,6 +234,7 @@ const API_MAP = {
         project_path: projectPath,
         prompts: inputs.prompt || (inputs.prompts && typeof inputs.prompts === 'string' ? inputs.prompts : '') || data.prompt || '',
         concepts_file: conceptsFile || inputs.concepts_file || data.concepts_file || undefined,
+        use_sage_attention: !!(inputs.use_sage_attention ?? data.use_sage_attention),
         image: inputs.imageUrl || data.imageUrl || undefined,
         fps: inputs.fps ?? data.fps ?? 24,
         resolution: inputs.resolution || data.resolution || '1024x576',
@@ -287,11 +293,28 @@ const API_MAP = {
     resultKey: 'imageUrl',
   },
   VideoAudioCombinerNode: {
-    api: (params) => combineVideoAudio(params.video_url, params.audio_url),
+    api: (params) => combineVideoAudio(params.video_url, params.audio_url, params.project_path),
     buildParams: (inputs, data) => ({
-      video_url: inputs.videoUrl || data.videoUrl || '',
+      video_url: (inputs.outputs && Array.isArray(inputs.outputs) && inputs.outputs.length > 0) ? inputs.outputs : (inputs.videoUrl || data.videoUrl || ''),
       audio_url: inputs.audioUrl || data.audioUrl || '',
+      project_path: useWorkflowStore.getState().projectPath,
     }),
+    extractResult: (res) => res.video_url || res.url || '',
+    resultKey: 'videoUrl',
+  },
+  VideoUpscalerNode: {
+    api: generateVideo,
+    buildParams: (inputs, data) => {
+      const projectPath = useWorkflowStore.getState().projectPath;
+      return {
+        type: 'upscale',
+        project_path: projectPath,
+        video_path: inputs.video || data.videoUrl || '',
+        resolution: data.resolution || 1080,
+        batch_size: data.batch_size ?? 33,
+        temporal_overlap: data.temporal_overlap ?? 3,
+      };
+    },
     extractResult: (res) => res.video_url || res.url || '',
     resultKey: 'videoUrl',
   },
@@ -304,6 +327,8 @@ const INPUT_TYPES = new Set([
   'BPMNode',
   'DurationNode',
   'AudioFileNode',
+  'YouTubeAudioNode',
+  'VisualStylesNode',
   'LyricsInputNode',
   'SongSettingsNode',
   'VideoWorkflowSettingsNode',
@@ -317,6 +342,7 @@ const OUTPUT_TYPES = new Set([
   'VideoPlayerNode',
   'ImagePreviewNode',
   'TextPreviewNode',
+  'DebugJsonNode',
 ]);
 
 function topoSort(nodes, edges) {
@@ -363,7 +389,7 @@ function topoSort(nodes, edges) {
   return order;
 }
 
-function gatherInputs(nodeId, nodes, edges, nodeMap) {
+export function gatherInputs(nodeId, nodes, edges, nodeMap) {
   const inputs = {};
   const incomingEdges = edges.filter((e) => e.target === nodeId);
   const targetNode = nodeMap[nodeId];

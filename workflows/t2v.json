@@ -387,7 +387,7 @@
       "chat_format": "",
       "temperature": 0.4,
       "top_p": 0.8,
-      "max_new_tokens": 32000
+      "max_new_tokens": 1024
     },
     "class_type": "VRGDG_SuperGemmaGGUFChat",
     "_meta": {

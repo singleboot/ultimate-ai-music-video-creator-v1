@@ -1,53 +1,69 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import useWorkflowStore from '../../store/workflowStore';
 
 const SECTIONS = [
   {
     title: 'BUNDLED NODES',
     nodes: [
-      { type: 'MusicGeneratorNode_bundle', label: 'Music Generator', icon: '\uD83C\uDFB6', color: '#b026ff' },
-      { type: 'PromptCreatorNode_bundle', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
-      { type: 'T2VGeneratorNode_bundle', label: 'T2V Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
-      { type: 'I2VGeneratorNode_bundle', label: 'I2V Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#4f46e5' },
-      { type: 'LyricsGeneratorNode_bundle', label: 'Lyrics Generator', icon: '\u270D\uFE0F', color: '#a855f7' },
-      { type: 'TTSGeneratorNode_bundle', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
-      { type: 'CoverGeneratorNode_bundle', label: 'Cover Generator', icon: '\uD83C\uDFA4', color: '#ec4899' },
-      { type: 'LLMTextGenNode_bundle', label: 'Audio Analyzer', icon: '\uD83D\uDD0D', color: '#10b981' },
+      { type: 'MusicGeneratorNode_bundle', label: 'Music Generator', icon: '🎵', color: '#b026ff' },
+      { type: 'PromptCreatorNode_bundle', label: 'Prompt Creator', icon: '✨', color: '#f59e0b' },
+      { type: 'T2VGeneratorNode_bundle', label: 'T2V Generator', icon: '🎬', color: '#6366f1' },
+      { type: 'I2VGeneratorNode_bundle', label: 'I2V Generator', icon: '🖼️', color: '#4f46e5' },
+      { type: 'LyricsGeneratorNode_bundle', label: 'Lyrics Generator', icon: '✍️', color: '#a855f7' },
+      { type: 'TTSGeneratorNode_bundle', label: 'TTS Generator', icon: '🗣️', color: '#06b6d4' },
+      { type: 'CoverGeneratorNode_bundle', label: 'Cover Generator', icon: '🎤', color: '#ec4899' },
+      { type: 'LLMTextGenNode_bundle', label: 'Audio Analyzer', icon: '🔍', color: '#10b981' },
     ],
   },
   {
     title: 'INPUTS',
     nodes: [
-      { type: 'ThemeNode', label: 'Theme', icon: '\uD83C\uDFAD', color: '#ff3bd4' },
-      { type: 'GenreNode', label: 'Genre', icon: '\uD83C\uDFB6', color: '#b026ff' },
-      { type: 'LanguageNode', label: 'Language', icon: '\uD83C\uDF10', color: '#63d4ff' },
-      { type: 'BPMNode', label: 'BPM', icon: '\u2699\uFE0F', color: '#f59e0b' },
-      { type: 'DurationNode', label: 'Duration', icon: '\u23F1\uFE0F', color: '#22c55e' },
-      { type: 'AudioFileNode', label: 'Audio File', icon: '\uD83C\uDFB5', color: '#ec4899' },
-      { type: 'LyricsInputNode', label: 'Lyrics', icon: '\uD83D\uDCDD', color: '#a855f7' },
+      { type: 'ThemeNode', label: 'Theme', icon: '🎭', color: '#ff3bd4' },
+      { type: 'GenreNode', label: 'Genre', icon: '🎵', color: '#b026ff' },
+      { type: 'LanguageNode', label: 'Language', icon: '🌐', color: '#63d4ff' },
+      { type: 'BPMNode', label: 'BPM', icon: '⚙️', color: '#f59e0b' },
+      { type: 'DurationNode', label: 'Duration', icon: '⏱️', color: '#22c55e' },
+      { type: 'SongSettingsNode', label: 'Song Settings', icon: '📻', color: '#10b981' },
+      { type: 'GutsSettingsNode', label: 'Guts Settings', icon: '⚙️', color: '#10b981' },
+      { type: 'AudioFileNode', label: 'Audio File', icon: '🎵', color: '#ec4899' },
+      { type: 'LyricsInputNode', label: 'Lyrics', icon: '📝', color: '#a855f7' },
+      { type: 'StoryConceptNode', label: 'Story Concept', icon: '📝', color: '#f59e0b' },
+      { type: 'StyleThemeNode', label: 'Style & Theme', icon: '🎨', color: '#b026ff' },
+      { type: 'VisualStylesNode', label: 'Visual Style Presets', icon: '🎨', color: '#ec4899' },
+      { type: 'YouTubeAudioNode', label: 'YouTube Audio Source', icon: '🎵', color: '#ef4444' },
+      { type: 'SubjectLocationsNode', label: 'Subject & Locations', icon: '📍', color: '#3b82f6' },
     ],
   },
   {
     title: 'PROCESSING',
     nodes: [
-      { type: 'LyricsGeneratorNode', label: 'Lyrics Generator', icon: '\u270D\uFE0F', color: '#a855f7' },
-      { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '\uD83C\uDFB5', color: '#b026ff' },
-      { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '\uD83C\uDFA4', color: '#ec4899' },
-      { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
-      { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
-      { type: 'VideoGeneratorNode', label: 'Video Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
-      { type: 'ImageGeneratorNode', label: 'Image Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
+      { type: 'LyricsGeneratorNode', label: 'Lyrics Generator', icon: '✍️', color: '#a855f7' },
+      { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '🎵', color: '#b026ff' },
+      { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '🎤', color: '#ec4899' },
+      { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '🗣️', color: '#06b6d4' },
+      { type: 'LLMTextGenNode', label: 'Audio Analyzer', icon: '🔍', color: '#10b981' },
+      { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '✨', color: '#f59e0b' },
+      { type: 'T2VGeneratorNode', label: 'T2V Generator', icon: '🎬', color: '#6366f1' },
+      { type: 'I2VGeneratorNode', label: 'I2V Generator', icon: '🖼️', color: '#4f46e5' },
+      { type: 'VideoWorkflowSettingsNode', label: 'Video Workflow Settings', icon: '⚙️', color: '#312e81' },
+      { type: 'LTXLoRASettingsNode', label: 'LTX LoRA Settings', icon: '🧬', color: '#4c1d95' },
+      { type: 'ZImageLoRASettingsNode', label: 'Z-Image LoRA Settings', icon: '🧬', color: '#4c1d95' },
+      { type: 'VideoAdvancedSettingsNode', label: 'Video Advanced Settings', icon: '🛠️', color: '#1e1b4b' },
+      { type: 'VideoAudioCombinerNode', label: 'Video & Audio Combiner', icon: '🎬', color: '#10b981' },
+      { type: 'VideoUpscalerNode', label: 'Video Upscaler', icon: '🚀', color: '#8b5cf6' },
+      { type: 'ImageGeneratorNode', label: 'Image Generator', icon: '🖼️', color: '#14b8a6' },
     ],
   },
   {
     title: 'OUTPUTS',
     nodes: [
-      { type: 'AudioPlayerNode', label: 'Audio Player', icon: '\u25B6\uFE0F', color: '#b026ff' },
-      { type: 'VideoPlayerNode', label: 'Video Player', icon: '\uD83C\uDFAC', color: '#6366f1' },
-      { type: 'ImagePreviewNode', label: 'Image Preview', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
-      { type: 'TextPreviewNode', label: 'Text Preview', icon: '\uD83D\uDCC4', color: '#b9b4d0' },
+      { type: 'AudioPlayerNode', label: 'Audio Player', icon: '▶️', color: '#b026ff' },
+      { type: 'VideoPlayerNode', label: 'Video Player', icon: '🎬', color: '#6366f1' },
+      { type: 'ImagePreviewNode', label: 'Image Preview', icon: '🖼️', color: '#14b8a6' },
+      { type: 'TextPreviewNode', label: 'Text Preview', icon: '📄', color: '#b9b4d0' },
+      { type: 'DebugJsonNode', label: 'JSON Debugger', icon: '🐞', color: '#e11d48' },
     ],
   },
 ];
@@ -226,6 +242,7 @@ export default function NodeSidebar() {
   const addNode = useWorkflowStore((s) => s.addNode);
   const addEdge = (edge) => useWorkflowStore.getState().onEdgesChange([{ type: 'add', item: edge }]);
   const clearWorkflow = useWorkflowStore((s) => s.clearWorkflow);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadTemplate = (tpl) => {
     clearWorkflow();
@@ -250,6 +267,21 @@ export default function NodeSidebar() {
       });
     }, 0);
   };
+
+  const filteredSections = SECTIONS.map((section) => {
+    const matched = section.nodes.filter(
+      (n) =>
+        n.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.type.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return { ...section, nodes: matched };
+  }).filter((section) => section.nodes.length > 0);
+
+  const filteredTemplates = WORKFLOW_TEMPLATES.filter(
+    (tpl) =>
+      tpl.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tpl.desc.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div
@@ -279,7 +311,38 @@ export default function NodeSidebar() {
       >
         Node Library
       </div>
-      {SECTIONS.map((section) => (
+
+      <div style={{ padding: '0 4px', marginBottom: 12 }}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search nodes & templates..."
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            boxSizing: 'border-box',
+            borderRadius: 8,
+            border: '1px solid rgba(176,38,255,0.2)',
+            background: 'rgba(176,38,255,0.06)',
+            color: '#fff',
+            fontSize: 12,
+            outline: 'none',
+            fontFamily: 'inherit',
+            transition: 'all 0.2s',
+          }}
+          onFocus={(e) => {
+            e.target.style.borderColor = 'rgba(176,38,255,0.6)';
+            e.target.style.background = 'rgba(176,38,255,0.12)';
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = 'rgba(176,38,255,0.2)';
+            e.target.style.background = 'rgba(176,38,255,0.06)';
+          }}
+        />
+      </div>
+
+      {filteredSections.map((section) => (
         <div key={section.title} style={{ marginBottom: 12 }}>
           <SectionHeader title={section.title} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -291,58 +354,62 @@ export default function NodeSidebar() {
       ))}
 
       {/* Workflow Templates */}
-      <div
-        style={{
-          fontSize: 11, fontWeight: 700, color: '#63d4ff',
-          letterSpacing: '0.12em', textTransform: 'uppercase',
-          padding: '0 14px 12px',
-          borderBottom: '1px solid rgba(99,212,255,0.15)',
-          marginBottom: 12,
-          marginTop: 20,
-        }}
-      >
-        Workflows
-      </div>
-      {WORKFLOW_TEMPLATES.map((tpl, i) => (
-        <div
-          key={i}
-          onClick={() => loadTemplate(tpl)}
-          style={{
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: `1px solid ${tpl.color}30`,
-            background: `${tpl.color}08`,
-            cursor: 'pointer',
-            marginBottom: 8,
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = `${tpl.color}15`;
-            e.currentTarget.style.borderColor = `${tpl.color}60`;
-            e.currentTarget.style.transform = 'translateX(4px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = `${tpl.color}08`;
-            e.currentTarget.style.borderColor = `${tpl.color}30`;
-            e.currentTarget.style.transform = 'translateX(0)';
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: `${tpl.color}20`, border: `1px solid ${tpl.color}40`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, flexShrink: 0,
-            }}>
-              {tpl.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{tpl.name}</div>
-              <div style={{ fontSize: 10, color: '#b9b4d0', marginTop: 1 }}>{tpl.desc}</div>
-            </div>
+      {filteredTemplates.length > 0 && (
+        <React.Fragment>
+          <div
+            style={{
+              fontSize: 11, fontWeight: 700, color: '#63d4ff',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              padding: '0 14px 12px',
+              borderBottom: '1px solid rgba(99,212,255,0.15)',
+              marginBottom: 12,
+              marginTop: 20,
+            }}
+          >
+            Workflows
           </div>
-        </div>
-      ))}
+          {filteredTemplates.map((tpl, i) => (
+            <div
+              key={i}
+              onClick={() => loadTemplate(tpl)}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: `1px solid ${tpl.color}30`,
+                background: `${tpl.color}08`,
+                cursor: 'pointer',
+                marginBottom: 8,
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `${tpl.color}15`;
+                e.currentTarget.style.borderColor = `${tpl.color}60`;
+                e.currentTarget.style.transform = 'translateX(4px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = `${tpl.color}08`;
+                e.currentTarget.style.borderColor = `${tpl.color}30`;
+                e.currentTarget.style.transform = 'translateX(0)';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: `${tpl.color}20`, border: `1px solid ${tpl.color}40`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, flexShrink: 0,
+                }}>
+                  {tpl.icon}
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{tpl.name}</div>
+                  <div style={{ fontSize: 10, color: '#b9b4d0', marginTop: 1 }}>{tpl.desc}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </React.Fragment>
+      )}
     </div>
   );
 }

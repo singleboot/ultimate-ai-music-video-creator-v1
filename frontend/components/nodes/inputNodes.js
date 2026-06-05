@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import BaseNode, { inputBase, selectBase, labelBase, Select } from './BaseNode';
 import NodeSpinner from './spinners';
 import useWorkflowStore from '../../store/workflowStore';
+import { cancelJob } from '../../lib/api';
 
 const GENRES = [
   'Pop', 'Rock', 'Hip Hop', 'R&B', 'Electronic', 'EDM', 'House',
@@ -397,27 +398,40 @@ function getConnectedInputText(nodeId) {
 const StoryConceptNode = React.memo(function StoryConceptNode({ data, id, selected }) {
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState('');
+  const cancelled = useRef(false);
 
   const handleEnhance = async () => {
     const currentVal = data.story_concept || data.story || '';
     const contextVal = getConnectedInputText(id);
     if (!currentVal.trim() && !contextVal.trim()) return;
+    cancelled.current = false;
     setEnhancing(true);
     setError('');
     try {
       const res = await fetch(`${API}/api/generate/enhance-text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: currentVal, type: 'story_concept', context: contextVal, max_length: data.maxLength ?? 1024 }),
+        body: JSON.stringify({ text: currentVal, type: 'story_concept', context: contextVal, max_length: data.maxLength ?? 256 }),
       });
+      if (cancelled.current) return;
       if (!res.ok) throw new Error('Enhance failed');
       const json = await res.json();
+      if (cancelled.current) return;
       data.onUpdate?.(id, { story_concept: json.enhanced, story: json.enhanced });
     } catch (err) {
+      if (cancelled.current) return;
       setError(err.message);
     } finally {
-      setEnhancing(false);
+      if (!cancelled.current) {
+        setEnhancing(false);
+      }
     }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setEnhancing(false);
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -428,7 +442,7 @@ const StoryConceptNode = React.memo(function StoryConceptNode({ data, id, select
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 9, color: '#a09bb5' }}>Max L:</span>
             <select
-              value={data.maxLength ?? 1024}
+              value={data.maxLength ?? 256}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => data.onUpdate?.(id, { maxLength: Number(e.target.value) })}
               style={{
@@ -449,26 +463,48 @@ const StoryConceptNode = React.memo(function StoryConceptNode({ data, id, select
               <option style={{ background: '#1c152a' }} value={1024}>1024</option>
               <option style={{ background: '#1c152a' }} value={2048}>2048</option>
             </select>
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={handleEnhance}
-              disabled={enhancing}
-              style={{
-                padding: '3px 8px',
-                borderRadius: 6,
-                border: '1px solid rgba(245,158,11,0.4)',
-                background: 'rgba(245,158,11,0.1)',
-                color: '#f59e0b',
-                fontSize: '10px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              {enhancing ? 'Enhancing...' : '🪄 Enhance'}
-            </button>
+            {enhancing ? (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleCancel}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#ef4444',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleEnhance}
+                disabled={enhancing}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(245,158,11,0.4)',
+                  background: 'rgba(245,158,11,0.1)',
+                  color: '#f59e0b',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                🪄 Enhance
+              </button>
+            )}
           </div>
         </div>
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
@@ -492,27 +528,40 @@ const StoryConceptNode = React.memo(function StoryConceptNode({ data, id, select
 const StyleThemeNode = React.memo(function StyleThemeNode({ data, id, selected }) {
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState('');
+  const cancelled = useRef(false);
 
   const handleEnhance = async () => {
     const currentVal = data.theme_style || data.theme || '';
     const contextVal = getConnectedInputText(id);
     if (!currentVal.trim() && !contextVal.trim()) return;
+    cancelled.current = false;
     setEnhancing(true);
     setError('');
     try {
       const res = await fetch(`${API}/api/generate/enhance-text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: currentVal, type: 'theme_style', context: contextVal, max_length: data.maxLength ?? 1024 }),
+        body: JSON.stringify({ text: currentVal, type: 'theme_style', context: contextVal, max_length: data.maxLength ?? 256 }),
       });
+      if (cancelled.current) return;
       if (!res.ok) throw new Error('Enhance failed');
       const json = await res.json();
+      if (cancelled.current) return;
       data.onUpdate?.(id, { theme_style: json.enhanced, theme: json.enhanced });
     } catch (err) {
+      if (cancelled.current) return;
       setError(err.message);
     } finally {
-      setEnhancing(false);
+      if (!cancelled.current) {
+        setEnhancing(false);
+      }
     }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setEnhancing(false);
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -523,7 +572,7 @@ const StyleThemeNode = React.memo(function StyleThemeNode({ data, id, selected }
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 9, color: '#a09bb5' }}>Max L:</span>
             <select
-              value={data.maxLength ?? 1024}
+              value={data.maxLength ?? 256}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => data.onUpdate?.(id, { maxLength: Number(e.target.value) })}
               style={{
@@ -544,26 +593,48 @@ const StyleThemeNode = React.memo(function StyleThemeNode({ data, id, selected }
               <option style={{ background: '#1c152a' }} value={1024}>1024</option>
               <option style={{ background: '#1c152a' }} value={2048}>2048</option>
             </select>
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={handleEnhance}
-              disabled={enhancing}
-              style={{
-                padding: '3px 8px',
-                borderRadius: 6,
-                border: '1px solid rgba(176,38,255,0.4)',
-                background: 'rgba(176,38,255,0.1)',
-                color: '#a855f7',
-                fontSize: '10px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              {enhancing ? 'Enhancing...' : '🪄 Enhance'}
-            </button>
+            {enhancing ? (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleCancel}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#ef4444',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleEnhance}
+                disabled={enhancing}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(176,38,255,0.4)',
+                  background: 'rgba(176,38,255,0.1)',
+                  color: '#a855f7',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                🪄 Enhance
+              </button>
+            )}
           </div>
         </div>
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
@@ -587,27 +658,40 @@ const StyleThemeNode = React.memo(function StyleThemeNode({ data, id, selected }
 const SubjectLocationsNode = React.memo(function SubjectLocationsNode({ data, id, selected }) {
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState('');
+  const cancelled = useRef(false);
 
   const handleEnhance = async () => {
     const currentVal = data.subject_scenes || '';
     const contextVal = getConnectedInputText(id);
     if (!currentVal.trim() && !contextVal.trim()) return;
+    cancelled.current = false;
     setEnhancing(true);
     setError('');
     try {
       const res = await fetch(`${API}/api/generate/enhance-text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: currentVal, type: 'subject_scenes', context: contextVal, max_length: data.maxLength ?? 1024 }),
+        body: JSON.stringify({ text: currentVal, type: 'subject_scenes', context: contextVal, max_length: data.maxLength ?? 256 }),
       });
+      if (cancelled.current) return;
       if (!res.ok) throw new Error('Enhance failed');
       const json = await res.json();
+      if (cancelled.current) return;
       data.onUpdate?.(id, { subject_scenes: json.enhanced });
     } catch (err) {
+      if (cancelled.current) return;
       setError(err.message);
     } finally {
-      setEnhancing(false);
+      if (!cancelled.current) {
+        setEnhancing(false);
+      }
     }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setEnhancing(false);
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -618,7 +702,7 @@ const SubjectLocationsNode = React.memo(function SubjectLocationsNode({ data, id
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 9, color: '#a09bb5' }}>Max L:</span>
             <select
-              value={data.maxLength ?? 1024}
+              value={data.maxLength ?? 256}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => data.onUpdate?.(id, { maxLength: Number(e.target.value) })}
               style={{
@@ -639,26 +723,48 @@ const SubjectLocationsNode = React.memo(function SubjectLocationsNode({ data, id
               <option style={{ background: '#1c152a' }} value={1024}>1024</option>
               <option style={{ background: '#1c152a' }} value={2048}>2048</option>
             </select>
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={handleEnhance}
-              disabled={enhancing}
-              style={{
-                padding: '3px 8px',
-                borderRadius: 6,
-                border: '1px solid rgba(59,130,246,0.4)',
-                background: 'rgba(59,130,246,0.1)',
-                color: '#3b82f6',
-                fontSize: '10px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              {enhancing ? 'Enhancing...' : '🪄 Enhance'}
-            </button>
+            {enhancing ? (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleCancel}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#ef4444',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleEnhance}
+                disabled={enhancing}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(59,130,246,0.4)',
+                  background: 'rgba(59,130,246,0.1)',
+                  color: '#3b82f6',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                🪄 Enhance
+              </button>
+            )}
           </div>
         </div>
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
@@ -833,5 +939,254 @@ const GutsSettingsNode = React.memo(function GutsSettingsNode({ data, id, select
   );
 });
 
-export { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode };
+const PRESET_STYLES = [
+  {
+    name: "Cyberpunk / Neon Noir",
+    desc: "High-contrast cybernetic neon lights, reflections in wet asphalt. Oppressive dark alleyways lit by glowing fuchsia, cyan, and toxic green advertisements. Blade Runner aesthetics, holographic projections, foggy atmosphere."
+  },
+  {
+    name: "Synthwave / Outrun",
+    desc: "1980s retro-futurism. Glowing grid horizons, wireframe landscapes under a massive low-poly sunset. Deep magenta, hot pink, orange, and neon purple gradients. VHS glitch artifacts, cassette futurism, vintage sports cars."
+  },
+  {
+    name: "Steampunk",
+    desc: "Victorian-era industrial design. Brass, copper, and dark polished wood gears and machinery. Puffs of steam, glowing gas lamps, sepia-toned ambient lighting, clockwork mechanisms, intricate leatherwear."
+  },
+  {
+    name: "Anime / Cel-Shaded",
+    desc: "Vibrant hand-drawn animation style, bold outlines, and flat color shading. Expressive lighting with dramatic sunbursts, high contrast shadows, classic Studio Ghibli or modern anime movie realism."
+  },
+  {
+    name: "Oil Painting / Impasto",
+    desc: "Thick, textured brushstrokes, visible paint layers. Rich, warm lighting reminiscent of Rembrandt or Van Gogh. Earthy pigments, dynamic impasto highlights, deep emotional color weight."
+  },
+  {
+    name: "Unreal Engine 5 Hyperrealism",
+    desc: "Next-gen hyper-realistic game render. Ray-traced global illumination, volumetric fog, micro-details in textures, dramatic cinematic depth of field, high-end production quality."
+  },
+  {
+    name: "Claymation / Stop-Motion",
+    desc: "Tactile plasticine clay textures, tiny visible fingerprints, and hand-molded details. Jerky, charmful stop-motion frames. Warm, physical studio miniature lighting."
+  },
+  {
+    name: "8-Bit / Retro Pixel Art",
+    desc: "Chunky 8-bit sprite aesthetic, limited vibrant retro color palette. Crisp grid pixel textures, glowing neon CRT monitor scanlines, classic vintage arcade atmosphere."
+  },
+  {
+    name: "Ethereal Watercolor",
+    desc: "Flowing, bleeding pigments, soft wet-on-wet watercolor washes on textured paper. Pastel tones, dreamy bleeding edges, gentle warm highlights, minimalist clean lines."
+  },
+  {
+    name: "Gothic Dark Fantasy",
+    desc: "Grimdark fantasy world. Towering obsidian cathedrals, gargoyles, mist-covered graveyards. Sickly pale moonlight, candles casting long shadows, deep crimson and slate gray accents."
+  },
+  {
+    name: "Psychedelic Acid Art",
+    desc: "Trippy, surreal melting shapes, shifting kaleidoscopic patterns. Eye-watering neon rainbows, liquid color flows, high contrast solarized lighting, hallucinating aesthetics."
+  },
+  {
+    name: "Watercolor Sketch",
+    desc: "Intricate black ink linework filled with loose, organic watercolor washes. Splashes and drips of color, soft natural lighting on textured parchment paper."
+  },
+  {
+    name: "Vintage Polaroid / 70s Film",
+    desc: "Faded warm colors, high contrast shadows, characteristic yellowed whites. Soft focus, visible chromatic aberration, light leaks, dust, and heavy film grain."
+  },
+  {
+    name: "Cosmic Nebula / Astral",
+    desc: "Outer space realism. Deep space backgrounds filled with glowing stellar nebulae, sparkling star fields, galaxy swirls. Iridescent neon purples, deep space blues, cosmic dust."
+  },
+  {
+    name: "Surrealism (Dali)",
+    desc: "Dreamlike logic, melting objects, impossible geometry under a vast, unnatural sky. Long dramatic shadows, desert landscapes, bizarre juxtapositions, soft amber sun."
+  },
+  {
+    name: "Pop Art / Comic Book",
+    desc: "Classic comic book halftone dot pattern (Ben-Day dots), thick black outlines. Bright primary colors (yellow, red, blue), screen-printing offset textures, high-energy flat graphics."
+  },
+  {
+    name: "Cybernetic Bioluminescence",
+    desc: "Deep sea alien environment or bio-tech organisms. Glowing neon blue and green pulsing patterns under dark organic structures. Bioluminescent flora, shimmering ethereal particles."
+  },
+  {
+    name: "Sketch / Charcoal Pencil",
+    desc: "Hand-drawn monochrome charcoal sketch. Cross-hatching, smudged shadows, textured white paper. High contrast dark graphite textures and sketchy guidelines."
+  },
+  {
+    name: "Glitch Art / Datamosh",
+    desc: "Digital corruption, broken compression frames, RGB chromatic separation. Static television noise, horizontal line tears, vibrant digital artifacts, electronic signal failure."
+  },
+  {
+    name: "Pastel Goth",
+    desc: "Spooky gothic elements blended with sweet pastel colors (mint green, baby pink, soft lavender). Chibi bats, skulls, cute bows, soft dreamy lighting."
+  },
+  {
+    name: "1950s Raygun Gothic",
+    desc: "Mid-century visions of the future. Sleek chrome flying saucers, bubble helmets, streamlined rocket ships. Technicolor hues, atomic motifs, glossy plastic textures."
+  },
+  {
+    name: "Dark Academia",
+    desc: "Classic scholarly aesthetic. Gothic university libraries, leather-bound books, antique globes, flickering candles. Warm amber candle lighting, tweed, mahogany, forest green."
+  },
+  {
+    name: "Holographic / Sci-Fi HUD",
+    desc: "Translucent blue glowing menus, floating wireframes, terminal text readouts. Sci-fi HUD overlay, data visualization grids, high-tech interface realism."
+  },
+  {
+    name: "Abstract Fluid Art",
+    desc: "Swirling acrylic paints pouring, marbleized textures. Metallic gold veins running through deep cobalt blue and white liquid patterns. Glossy, wet reflective look."
+  },
+  {
+    name: "Noir Detective (Monochrome)",
+    desc: "High-contrast chiaroscuro film noir lighting. Dramatic shadow lines from Venetian blinds, foggy streetlamps, deep rich blacks, and bright, stark whites."
+  },
+  {
+    name: "Paper Cutout / Diorama",
+    desc: "Layered 3D construction paper crafts. Visible shadow gaps between paper sheets, soft studio top lighting, vibrant color cards, textured edges, toy-like miniature scale."
+  },
+  {
+    name: "Alien Biopunk",
+    desc: "Bio-engineered technology. Fleshy, pulsing organic structures, slimy surfaces, skeletal machinery. Sickly warm amber and crimson lights, moist environment, chitin armor."
+  },
+  {
+    name: "Da Vinci Journal Sketch",
+    desc: "Aged yellowed parchment paper, sepia ink, detailed scientific anatomical sketches, handwritten mirror writing, chalk highlights."
+  },
+  {
+    name: "Solarpunk",
+    desc: "Eco-friendly optimistic future. Lush vertical gardens crawling over polished white structures and solar panel arrays. Warm natural golden hour sun, clean blue skies."
+  },
+  {
+    name: "Neon Wasteland",
+    desc: "Ruins of a modern city reclaimed by nature, spray-painted with glowing neon graffiti. Dusty sunrays filtering through cracked concrete, rusty metal structures, overgrown vines."
+  }
+];
+
+const VisualStylesNode = React.memo(function VisualStylesNode({ data, id, selected }) {
+  const selectedStyle = data.selectedStyle || PRESET_STYLES[0].name;
+  const styleObj = PRESET_STYLES.find(s => s.name === selectedStyle) || PRESET_STYLES[0];
+  const styleDescription = data.theme_style || styleObj.desc;
+
+  const handleChange = (e) => {
+    const name = e.target.value;
+    const found = PRESET_STYLES.find(s => s.name === name);
+    if (found) {
+      data.onUpdate?.(id, {
+        selectedStyle: name,
+        theme_style: found.desc,
+        theme: found.desc,
+        text: found.desc
+      });
+    }
+  };
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    data.onUpdate?.(id, {
+      theme_style: val,
+      theme: val,
+      text: val
+    });
+  };
+
+  return (
+    <BaseNode title="Visual Style Presets" color="#ec4899" selected={selected} nodeId={id} data={data} outputHandles={styleOut}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0, height: '100%', width: '100%' }}>
+        <div style={labelBase}>Select Style Preset</div>
+        <select
+          value={selectedStyle}
+          onPointerDown={(e) => e.stopPropagation()}
+          onChange={handleChange}
+          style={{
+            ...selectBase,
+            width: '100%',
+            fontSize: 11,
+            padding: '4px 6px',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(236,72,153,0.2)',
+            color: '#fff',
+            borderRadius: 6,
+            outline: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          {PRESET_STYLES.map((s) => (
+            <option key={s.name} value={s.name} style={{ background: '#1c152a', color: '#fff' }}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <div style={labelBase}>Style Prompt Description</div>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <textarea
+            className="nodrag"
+            value={styleDescription}
+            onChange={handleTextChange}
+            placeholder="Style prompt details..."
+            style={{
+              ...inputBase,
+              resize: 'none',
+              width: '100%',
+              height: '100%',
+              minHeight: 120,
+              lineHeight: 1.5,
+              fontSize: 10.5,
+              userSelect: 'text',
+              WebkitUserSelect: 'text',
+              border: '1px solid rgba(236,72,153,0.15)',
+              borderRadius: 6
+            }}
+          />
+        </div>
+      </div>
+    </BaseNode>
+  );
+});
+
+const youtubeOut = [
+  { id: 'output-0', label: 'audio', icon: '🎵' },
+  { id: 'output-1', label: 'file', icon: '📁' },
+];
+
+const YouTubeAudioNode = React.memo(function YouTubeAudioNode({ data, id, selected }) {
+  const url = data.youtubeUrl || '';
+
+  const handleUrlChange = (e) => {
+    const val = e.target.value;
+    data.onUpdate?.(id, {
+      youtubeUrl: val,
+      audioUrl: val,
+      audioFileName: val,
+      audioFile: null
+    });
+  };
+
+  return (
+    <BaseNode title="YouTube Audio" color="#ef4444" selected={selected} nodeId={id} data={data} outputHandles={youtubeOut}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0, width: '100%' }}>
+        <div style={labelBase}>YouTube Link</div>
+        <input
+          type="text"
+          value={url}
+          onChange={handleUrlChange}
+          placeholder="https://www.youtube.com/watch?v=..."
+          style={{
+            ...inputBase,
+            width: '100%',
+            fontSize: 11,
+            padding: '6px 8px',
+            border: '1px solid rgba(239,68,68,0.2)',
+            borderRadius: 6,
+            background: 'rgba(255,255,255,0.03)',
+            color: '#fff',
+            outline: 'none'
+          }}
+        />
+        <div style={descStyle}>Provide a YouTube video or music link. The system will download/cache the audio track dynamically.</div>
+      </div>
+    </BaseNode>
+  );
+});
+
+export { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode, VisualStylesNode, YouTubeAudioNode };
 

@@ -506,13 +506,39 @@ class WorkflowEditor:
         lang = params.get("language", params.get("whisper_language", "auto"))
         self.set_node_input(workflow, "28:79", "language", lang)
 
+        # 0. Inject audio path to load the correct track if provided
+        if "audio_path" in params and params["audio_path"]:
+            self.set_node_input(workflow, "790:784", "audio_file", params["audio_path"])
+        
+        # Bypass ComfyUI execution caching by randomizing refresh primitives
+        import random
+        self.set_node_input(workflow, "790:789", "value", random.randint(1, 1000000))
+        self.set_node_input(workflow, "790:783:35", "value", random.randint(1, 1000000))
+
+        # Invalidate text loader nodes to force reload from disk
+        for node_id in ("798", "799", "801", "922"):
+            if node_id in workflow:
+                if "inputs" not in workflow[node_id]:
+                    workflow[node_id]["inputs"] = {}
+                workflow[node_id]["inputs"]["Refresh List"] = random.randint(1, 1000000)
+
         # 1. Manual Lyrics Extractor node 28:79 (FPS, max duration)
         if "fps" in params:
             self.set_node_input(workflow, "28:79", "fps", int(params["fps"]))
+        
+        # scene_duration_seconds max is 60 in ComfyUI node — always clamp it.
+        # The workflow JSON default (180) exceeds the node maximum so we MUST always set it.
+        # Use the song duration (params["duration"]) as the source value, clamped to 60.
+        song_duration = int(params.get("duration", 60))
+        raw_scene_dur = int(params.get("scene_duration_seconds", song_duration))
+        self.set_node_input(workflow, "28:79", "scene_duration_seconds", min(raw_scene_dur, 60))
         if "max_duration" in params:
-            self.set_node_input(workflow, "28:79", "scene_duration_seconds", int(params["max_duration"]))
+            # If specifically overridden by guts max_duration
+            pass
 
         # 2. Beat-Aligned Scene Durations node 28:80 (min/max durations, bias, preset)
+        import random
+        self.set_node_input(workflow, "28:80", "seed", random.randint(1, 1000000))
         if "min_duration" in params:
             self.set_node_input(workflow, "28:80", "min_duration", int(params["min_duration"]))
         if "max_duration" in params:
@@ -595,6 +621,30 @@ class WorkflowEditor:
             self.set_node_input(workflow, srt_loader, "tail_loss_frames", params["tail_loss_frames"])
         if "pre_frames" in params:
             self.set_node_input(workflow, srt_loader, "pre_frames", params["pre_frames"])
+
+        # Handle SageAttention toggle
+        use_sage = params.get("use_sage_attention", False)
+        if isinstance(use_sage, str):
+            use_sage = use_sage.upper() in ("ON", "TRUE", "1")
+        
+        if use_sage:
+            logger.info("SageAttention ENABLED — injecting LTX2MemoryEfficientSageAttentionPatch node")
+            sage_node_id = "999_sage_attn"
+            workflow[sage_node_id] = {
+                "inputs": {
+                    "model": ["271:215", 0],
+                    "triton_kernels": True
+                },
+                "class_type": "LTX2MemoryEfficientSageAttentionPatch",
+                "_meta": {
+                    "title": "LTX2 Mem Eff Sage Attention Patch"
+                }
+            }
+            if workflow.get("842") and "inputs" in workflow["842"]:
+                workflow["842"]["inputs"]["model"] = [sage_node_id, 0]
+                logger.info("Rewired node 842 model input → %s", sage_node_id)
+        else:
+            logger.info("SageAttention DISABLED (use_sage_attention=%r)", params.get("use_sage_attention", "<not set>"))
 
     def _inject_loras_from_array(self, workflow: dict, params: dict) -> None:
         """Inject LoRA parameters from an array format into the flat lora_1..lora_20 format.
@@ -722,9 +772,39 @@ class WorkflowEditor:
                 )
 
         if "concepts_file" in params and params["concepts_file"]:
-            if str(params["concepts_file"]).lower().endswith(".srt"):
+            concepts_f = str(params["concepts_file"])
+            if "?" in concepts_f:
+                concepts_f = concepts_f.split("?")[0]
+            if concepts_f.lower().endswith(".srt"):
                 self.set_node_input(workflow, "837", "switch", False)
-                self.set_node_input(workflow, "838", "value", params["concepts_file"])
+                self.set_node_input(workflow, "838", "value", concepts_f)
+            else:
+                self.set_node_input(workflow, "837", "switch", True)
+                self.set_node_input(workflow, "838", "value", "")
+                
+                # Resolve full path to concept prompts and inject JSON contents
+                comfy_output_dir = os.environ.get("COMFYUI_OUTPUT_DIR")
+                if not comfy_output_dir:
+                    # Fall back to comfyui/output in the root of the project
+                    modules_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.realpath(os.path.join(modules_dir, "..", ".."))
+                    comfy_output_dir = os.path.join(project_root, "comfyui", "output")
+                comfy_output_dir = os.path.realpath(comfy_output_dir)
+
+                concepts_file_path = os.path.join(comfy_output_dir, "VRGDG_TEMP", "TextFiles", "ConceptPrompts", concepts_f)
+                if not os.path.exists(concepts_file_path):
+                    concepts_file_path = os.path.join(comfy_output_dir, concepts_f)
+                
+                if os.path.exists(concepts_file_path):
+                    try:
+                        with open(concepts_file_path, "r", encoding="utf-8") as f:
+                            json_content = f.read()
+                        for node_id in ("860", "543"):
+                            if workflow.get(node_id):
+                                self.set_node_input(workflow, node_id, "json_string", json_content)
+                                logger.info("Injected concepts JSON string into prompt splitter node %s", node_id)
+                    except Exception as e:
+                        logger.error("Failed to read and inject concepts file content: %s", e)
 
         # Inject Remake/Redo parameters into the custom split node "218:287"
         if "use_remake_folder" in params:
@@ -786,6 +866,14 @@ class WorkflowEditor:
         self._inject_loras_from_array(workflow, params)
         self._inject_ltx_advanced_params(workflow, params)
 
+        # Invalidate text loader nodes to force reload from disk
+        import random
+        for node_id in ("856", "857"):
+            if node_id in workflow:
+                if "inputs" not in workflow[node_id]:
+                    workflow[node_id]["inputs"] = {}
+                workflow[node_id]["inputs"]["Refresh List"] = random.randint(1, 1000000)
+
         return workflow
 
     def inject_t2v_params(self, workflow: dict, params: dict) -> dict:
@@ -844,5 +932,30 @@ class WorkflowEditor:
                 self.set_node_input(
                     workflow, "853", "user_input", t2v_prompt
                 )
+
+        return workflow
+
+    def inject_upscale_params(self, workflow: dict, params: dict) -> dict:
+        """Inject parameters into the SeedVR2 Video Upscaler workflow.
+
+        Args:
+            workflow: The upscale workflow dict.
+            params: Dict with keys:
+                - video_path (str): Path to the input video.
+                - resolution (int, optional): Output resolution height.
+                - batch_size (int, optional): Batch size.
+                - temporal_overlap (int, optional): Temporal overlap size.
+
+        Returns:
+            The modified workflow dict.
+        """
+        if "video_path" in params:
+            self.set_node_input(workflow, "21", "file", params["video_path"])
+        if "resolution" in params:
+            self.set_node_input(workflow, "10", "resolution", int(params["resolution"]))
+        if "batch_size" in params:
+            self.set_node_input(workflow, "10", "batch_size", int(params["batch_size"]))
+        if "temporal_overlap" in params:
+            self.set_node_input(workflow, "10", "temporal_overlap", int(params["temporal_overlap"]))
 
         return workflow

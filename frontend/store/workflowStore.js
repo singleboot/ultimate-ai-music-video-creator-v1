@@ -201,6 +201,7 @@ const useWorkflowStore = create(
 
       saveWorkflow: async () => {
         const { nodes, edges, workflowName, projectPath, savedWorkflows } = get();
+        if (!nodes || nodes.length === 0) return null;
         const id = Date.now().toString();
         const entry = {
           id,
@@ -243,6 +244,75 @@ const useWorkflowStore = create(
         }
 
         const exists = savedWorkflows.findIndex((w) => w.name === workflowName);
+        let next;
+        if (exists >= 0) {
+          next = savedWorkflows.map((w, i) => (i === exists ? entry : w));
+        } else {
+          next = [...savedWorkflows, entry];
+        }
+        set({ savedWorkflows: next });
+        return entry;
+      },
+
+      saveWorkflowAs: async (newName) => {
+        if (!newName || !newName.trim()) return null;
+        const name = newName.trim();
+        const { nodes, edges, projectPath, savedWorkflows } = get();
+        const id = Date.now().toString();
+        const entry = {
+          id,
+          name,
+          path: projectPath,
+          nodes: JSON.parse(JSON.stringify(nodes)),
+          edges: JSON.parse(JSON.stringify(edges)),
+          savedAt: new Date().toISOString(),
+        };
+
+        if (projectPath) {
+          try {
+            const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+            const response = await fetch(`${API}/api/projects/save-as`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project_path: projectPath,
+                new_name: name,
+                workflow: {
+                  name,
+                  nodes: entry.nodes,
+                  edges: edges
+                }
+              })
+            });
+            if (response.ok) {
+              const resData = await response.json();
+              if (resData.status === 'ok') {
+                const newProjectPath = resData.project_path;
+                const newProjectName = resData.project_name;
+                entry.path = newProjectPath;
+                entry.name = newProjectName;
+                set({
+                  projectPath: newProjectPath,
+                  workflowName: newProjectName
+                });
+              } else {
+                throw new Error(resData.detail || 'Failed to Save As');
+              }
+            } else {
+              const errData = await response.json();
+              throw new Error(errData.detail || 'Failed to Save As');
+            }
+          } catch (e) {
+            console.error('Error saving workflow as:', e);
+            throw e;
+          }
+        } else {
+          set({
+            workflowName: name
+          });
+        }
+
+        const exists = savedWorkflows.findIndex((w) => w.name === name);
         let next;
         if (exists >= 0) {
           next = savedWorkflows.map((w, i) => (i === exists ? entry : w));

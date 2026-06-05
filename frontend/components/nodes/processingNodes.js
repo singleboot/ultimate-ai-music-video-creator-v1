@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import BaseNode, { inputBase, labelBase, btnBase, Select } from './BaseNode';
-import { generateLyrics, generateText2Audio, generateAudioCover, generateTTS, generatePrompts, generateVideo, generateLLMAudioAnalysis, combineVideoAudio, fetchLoras, resolveUrl } from '../../lib/api';
+import { generateLyrics, generateText2Audio, generateAudioCover, generateTTS, generatePrompts, generateVideo, startVideoJob, getVideoJobStatus, generateLLMAudioAnalysis, combineVideoAudio, fetchLoras, resolveUrl, cancelJob } from '../../lib/api';
 import NodeSpinner from './spinners';
 import useWorkflowStore from '../../store/workflowStore';
 
@@ -298,6 +298,7 @@ const LyricsGeneratorNode = React.memo(function LyricsGeneratorNode({ data, id, 
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -482,6 +483,7 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
     setLoading(false);
     stopProgress();
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   const handleDebug = async () => {
@@ -539,7 +541,7 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
   };
 
   return (
-    <BaseNode title="Music Generator" color="#b026ff" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={musicInputs} outputHandles={musicOut}>
+    <BaseNode title="Music Generator" color="#b026ff" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={musicInputs} outputHandles={musicOut} style={{ width: 380 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
         {showAdvanced && (
           <>
@@ -556,76 +558,27 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
               <audio controls preload="metadata" style={{ width: '100%', height: 28 }} src={resolveUrl(d.current.audioUrl, useWorkflowStore.getState().projectPath)} />
               
-              {!d.current.approved ? (
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => {
-                    useWorkflowStore.getState().updateNodeData(id, { approved: true });
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 'bold',
-                    fontSize: '11px',
-                    cursor: 'pointer',
-                    boxShadow: '0 0 10px rgba(16,185,129,0.4)',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                  Approve Audio
-                </button>
-              ) : (
+              {d.current.approved && (
                 <div
                   className="nodrag"
                   style={{
-                    padding: '10px',
+                    padding: '8px 10px',
                     borderRadius: '8px',
                     background: 'rgba(176, 38, 255, 0.1)',
                     backdropFilter: 'blur(8px)',
                     border: '1px solid rgba(176, 38, 255, 0.2)',
-                    fontSize: '11px',
+                    fontSize: '10.5px',
                     color: '#e9d5ff',
                     lineHeight: '1.4',
                     boxShadow: '0 4px 12px rgba(176, 38, 255, 0.15)'
                   }}
                 >
-                  <div style={{ fontWeight: 'bold', color: '#f3e8ff', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ fontWeight: 'bold', color: '#f3e8ff', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={{ color: '#10b981' }}>✓</span> Approved & Ready!
                   </div>
-                  <div style={{ fontSize: '10.5px' }}>
-                    Next steps: Connect the <strong style={{ color: '#b026ff' }}>audio</strong> output handle of this node to either:
-                    <ul style={{ margin: '4px 0 0 12px', padding: 0 }}>
-                      <li>The <strong style={{ color: '#ec4899' }}>audio</strong> input handle of the <strong>Prompt Creator</strong> node to sync prompts with BPM.</li>
-                      <li>The <strong style={{ color: '#3b82f6' }}>audio</strong> input handle of the <strong>Video Generator</strong> node to embed the track.</li>
-                    </ul>
+                  <div style={{ fontSize: '10px' }}>
+                    Next steps: Connect the <strong style={{ color: '#b026ff' }}>audio</strong> output handle of this node to either the <strong>Prompt Creator</strong> or <strong>Video Generator</strong>.
                   </div>
-                  <button
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      useWorkflowStore.getState().updateNodeData(id, { approved: false });
-                    }}
-                    style={{
-                      marginTop: '8px',
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#c084fc',
-                      fontSize: '9px',
-                      cursor: 'pointer',
-                      padding: 0,
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    Reset Approval
-                  </button>
                 </div>
               )}
             </div>
@@ -642,18 +595,101 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
             </>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0, gap: 6, padding: '4px 0' }}>
-          <button onPointerDown={(e) => e.stopPropagation()} onClick={handleDebug} title="Inspect what will be sent to ComfyUI" style={{ ...btnBase, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b', marginTop: 0, width: 'auto', padding: '3px 8px', fontSize: 8 }}>Inspect</button>
-          <div style={{ position: 'relative', width: 20, height: 20, marginRight: -22, flexShrink: 0 }}>
-            <Handle type="source" position={Position.Right} id="output-1" title="debug" isConnectableStart={true} style={{ position: 'absolute', right: -10, top: 0, width: 20, height: 20, background: '#63d4ff', border: '2px solid rgba(15,5,30,0.95)', transform: 'none', opacity: 0.4 }} />
-            <div style={{ position: 'absolute', right: -10, top: 0, width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none', fontSize: 11, lineHeight: 1 }}>{'\uD83D\uDC1B'}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 6, padding: '4px 0' }}>
           <WorkflowGear nodeId={id} currentWf={d.current.workflow} defaultWf="ace_text2music_v2" category="text-to-audio" />
-          <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#b026ff', marginTop: 0, width: 'auto', padding: '3px 8px' }}>
-            {loading ? 'Cancel' : 'Generate'}
-          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Approve button */}
+            {!d.current.approved ? (
+              <button
+                disabled={!d.current.audioUrl}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  useWorkflowStore.getState().updateNodeData(id, { approved: true });
+                }}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: d.current.audioUrl ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#374151',
+                  color: d.current.audioUrl ? '#ffffff' : '#9ca3af',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  fontSize: '9px',
+                  cursor: d.current.audioUrl ? 'pointer' : 'not-allowed',
+                  opacity: d.current.audioUrl ? 1 : 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Approve
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  useWorkflowStore.getState().updateNodeData(id, { approved: false });
+                }}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  color: '#10b981',
+                  fontWeight: 'bold',
+                  fontSize: '9px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                ✓ Approved
+              </button>
+            )}
+
+            {/* Generate button */}
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={loading ? handleCancel : handleGenerate}
+              style={{
+                ...btnBase,
+                background: loading ? '#ef4444' : '#b026ff',
+                marginTop: 0,
+                width: 'auto',
+                padding: '3px 8px',
+                fontSize: '9px',
+              }}
+            >
+              {loading ? 'Cancel' : 'Generate'}
+            </button>
+
+            {/* Inspect button */}
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={handleDebug}
+              title="Inspect what will be sent to ComfyUI"
+              style={{
+                ...btnBase,
+                background: 'rgba(245,158,11,0.15)',
+                border: '1px solid rgba(245,158,11,0.4)',
+                color: '#f59e0b',
+                marginTop: 0,
+                width: 'auto',
+                padding: '3px 8px',
+                fontSize: '9px',
+              }}
+            >
+              Inspect
+            </button>
+
+            {/* Debug Handle */}
+            <div style={{ position: 'relative', width: 20, height: 20, marginRight: -22, flexShrink: 0 }}>
+              <Handle type="source" position={Position.Right} id="output-1" title="debug" isConnectableStart={true} style={{ position: 'absolute', right: -10, top: 0, width: 20, height: 20, background: '#63d4ff', border: '2px solid rgba(15,5,30,0.95)', transform: 'none', opacity: 0.4 }} />
+              <div style={{ position: 'absolute', right: -10, top: 0, width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none', fontSize: 11, lineHeight: 1 }}>{'\uD83D\uDC1B'}</div>
+            </div>
+          </div>
         </div>
       </div>
     </BaseNode>
@@ -694,6 +730,7 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -770,6 +807,7 @@ const TTSGeneratorNode = React.memo(function TTSGeneratorNode({ data, id, select
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -866,6 +904,7 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -949,15 +988,21 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
   useEffect(() => {
     const fetchPromptsContent = async () => {
       if (d.current.prompts && typeof d.current.prompts === 'object' && d.current.prompts.outputs && d.current.prompts.outputs.length > 0) {
-        const url = d.current.prompts.outputs[0];
+        const projectPath = useWorkflowStore.getState().projectPath;
+        const rawUrl = d.current.prompts.outputs[0];
+        // Resolve project:// and /output/ URLs to fetchable http:// URLs
+        const resolvedUrl = resolveUrl(rawUrl, projectPath);
         try {
-          const res = await fetch(url);
+          const cacheBusterUrl = resolvedUrl.includes('?') ? `${resolvedUrl}&_t=${Date.now()}` : `${resolvedUrl}?_t=${Date.now()}`;
+          const res = await fetch(cacheBusterUrl);
           if (res.ok) {
             const text = await res.text();
             setPromptContent(text);
+          } else {
+            console.error("Failed to fetch prompts content: HTTP", res.status, resolvedUrl);
           }
         } catch (e) {
-          console.error("Failed to fetch prompts content:", e);
+          console.error("Failed to fetch prompts content:", e, resolvedUrl);
         }
       } else if (typeof d.current.prompts === 'string') {
         setPromptContent(d.current.prompts);
@@ -980,6 +1025,12 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
       const storyText = inputs.story_concept || d.current.story_concept || inputs.story || d.current.story || '';
       const locationsText = inputs.subject_scenes || d.current.subject_scenes || '';
 
+      const allNodes = useWorkflowStore.getState().nodes;
+      const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
+      const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
+      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || '';
+      const projectPath = useWorkflowStore.getState().projectPath;
+
       const res = await generatePrompts({
         lyrics: lyricsText,
         theme_style: themeText,
@@ -991,8 +1042,11 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
         max_duration: inputs.maxDuration ?? d.current.maxDuration ?? 10,
         bias: inputs.bias ?? d.current.bias ?? 0.7,
         duration_preset: inputs.durationPreset || d.current.durationPreset || 'varied_no_repeat',
-        use_srt: inputs.useSrt || d.current.useSrt || 'ON',
+        use_srt: inputs.use_srt || d.current.use_srt || inputs.useSrt || d.current.useSrt || 'ON',
         llm_model: inputs.llmModel || d.current.llmModel || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf',
+        duration: inputs.duration || d.current.duration || 180,
+        audio_path: activeAudioUrl,
+        project_path: projectPath,
       });
       if (cancelled.current) return;
       useWorkflowStore.getState().updateNodeData(id, { prompts: res.concepts || res.prompts || res, promptId: res.prompt_id || res.job_id || '', isRunning: false, error: undefined });
@@ -1038,6 +1092,7 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   const DURATION_PRESETS = [
@@ -1110,23 +1165,35 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
         <div style={outputContainerBase}>
           {d.current.prompts && (
             <div className="nodrag" style={{ ...outputAreaBase, whiteSpace: 'pre-wrap', maxHeight: node?.height ? 'none' : 150, flex: 1 }}>
-              {promptContent || (typeof d.current.prompts === 'string' ? d.current.prompts : JSON.stringify(d.current.prompts, null, 2))}
+              {promptContent
+                ? promptContent
+                : (typeof d.current.prompts === 'string'
+                  ? d.current.prompts
+                  : (d.current.prompts.status === 'completed' ? '✅ Prompts generated — loading...' : JSON.stringify(d.current.prompts, null, 2))
+                )
+              }
             </div>
           )}
-          {d.current.prompts && d.current.prompts.outputs && d.current.prompts.outputs.map((url, idx) => (
-            <a
-              key={idx}
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              onPointerDown={(e) => e.stopPropagation()}
-              style={{
-                fontSize: 9, color: '#63d4ff', textDecoration: 'underline', marginTop: 4, display: 'block', wordBreak: 'break-all', fontWeight: 600
-              }}
-            >
-              🔗 View Prompt File ({url.substring(url.lastIndexOf('/') + 1)})
-            </a>
-          ))}
+          {d.current.prompts && d.current.prompts.outputs && d.current.prompts.outputs.map((url, idx) => {
+            const projectPath = useWorkflowStore.getState().projectPath;
+            const resolvedHref = resolveUrl(url, projectPath);
+            const clean = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+            const filename = clean.substring(clean.lastIndexOf('/') + 1);
+            return (
+              <a
+                key={idx}
+                href={resolvedHref}
+                target="_blank"
+                rel="noreferrer"
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: 9, color: '#63d4ff', textDecoration: 'underline', marginTop: 4, display: 'block', wordBreak: 'break-all', fontWeight: 600
+                }}
+              >
+                🔗 View Prompt File ({filename})
+              </a>
+            );
+          })}
           {d.current.error && !loading && (
             <div className="nodrag" style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', userSelect: 'text', WebkitUserSelect: 'text' }}>{d.current.error}</div>
           )}
@@ -1151,10 +1218,31 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
     useWorkflowStore.getState().updateNodeData(id, patch);
   };
 
+  const projectPath = useWorkflowStore((s) => s.projectPath);
+
+  useEffect(() => {
+    if (d.current.videoUrl && (!d.current.outputs || d.current.outputs.length === 0)) {
+      const fetchOutputs = async () => {
+        try {
+          const res = await fetch(`http://127.0.0.1:8000/api/projects/list-video-outputs?video_url=${encodeURIComponent(d.current.videoUrl)}&project_path=${encodeURIComponent(projectPath || '')}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.outputs && data.outputs.length > 0) {
+              updateNodeData({ outputs: data.outputs });
+            }
+          }
+        } catch (e) {
+          console.error("Failed to auto-populate outputs list:", e);
+        }
+      };
+      fetchOutputs();
+    }
+  }, [d.current.videoUrl, projectPath]);
+
   const handleGenerate = async () => {
     cancelled.current = false;
     setLoading(true);
-    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined });
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined, statusMsg: 'Starting...' });
     try {
       const inputs = getConnectedInputs(id);
       
@@ -1163,7 +1251,8 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
         const outputs = inputs.prompts.outputs || [];
         if (outputs.length > 0) {
           const url = outputs[0];
-          conceptsFile = url.substring(url.lastIndexOf('/') + 1);
+          const cleanUrl = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+          conceptsFile = cleanUrl.includes('/output/') ? cleanUrl.substring(cleanUrl.indexOf('/output/') + 8) : cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
         }
       }
 
@@ -1193,19 +1282,18 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
       const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || d.current.audioUrl || '';
       const projectPath = useWorkflowStore.getState().projectPath;
 
-      const res = await generateVideo({
-        mode: 't2v',
+      const jobParams = {
         audio_path: activeAudioUrl,
         project_path: projectPath,
         prompts: inputs.prompt || (inputs.prompts && typeof inputs.prompts === 'string' ? inputs.prompts : '') || d.current.prompt || '',
         concepts_file: conceptsFile || inputs.concepts_file || d.current.concepts_file || undefined,
+        use_sage_attention: !!(inputs.use_sage_attention ?? d.current.use_sage_attention),
         fps: inputs.fps ?? d.current.fps ?? 24,
         resolution: inputs.resolution || d.current.resolution || '1024x576',
         width: inputs.width ?? d.current.width ?? 1024,
         height: inputs.height ?? d.current.height ?? 576,
         seed: inputs.seed ?? d.current.seed ?? -1,
         camera_motion: inputs.cameraMotion || d.current.cameraMotion || 'Static',
-        // Model parameters
         ltx_gguf: inputs.ltx_gguf || d.current.ltx_gguf || 'VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q4_0.gguf',
         video_vae: inputs.video_vae || d.current.video_vae || 'LTX 2\\LTX23_video_vae_bf16.safetensors',
         gemma_clip: inputs.gemma_clip || d.current.gemma_clip || 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors',
@@ -1216,7 +1304,6 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
         z_image_clip: inputs.z_image_clip || d.current.z_image_clip || 'qwen_3_4b.safetensors',
         z_image_vae: inputs.z_image_vae || d.current.z_image_vae || 'ae.safetensors',
         supergemma_llm: inputs.supergemma_llm || d.current.supergemma_llm || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf',
-        // LoRAs
         use_custom_loras: inputs.use_custom_loras || d.current.use_custom_loras || 'OFF',
         lora_trigger_word: !!(inputs.lora_trigger_word ?? d.current.lora_trigger_word),
         lora_trigger_text: inputs.lora_trigger_text || d.current.lora_trigger_text || '',
@@ -1227,7 +1314,6 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
         z_lora_trigger_text: inputs.z_lora_trigger_text || d.current.z_lora_trigger_text || '',
         z_image_lora_count: inputs.z_image_lora_count ?? d.current.z_image_lora_count ?? 1,
         ...loraParams,
-        // Advanced Custom Lists
         advanced_enabled: !!(inputs.advanced_enabled ?? d.current.advanced_enabled),
         settings_count: inputs.settings_count ?? d.current.settings_count ?? 2,
         selection_mode_all: inputs.selection_mode_all || d.current.selection_mode_all || 'Index-based',
@@ -1241,12 +1327,45 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
         character_motion_items: inputs.character_motion_items ?? d.current.character_motion_items ?? 1,
         camera_motion_template: inputs.camera_motion_template || d.current.camera_motion_template || 'start with {item1} then follow with {item2}',
         character_motion_template: inputs.character_motion_template || d.current.character_motion_template || 'start with {item1} then follow with {item2}',
-      });
+      };
+
+      // Start the async job — returns immediately with a job_id
+      const startRes = await startVideoJob('t2v', jobParams);
       if (cancelled.current) return;
-      useWorkflowStore.getState().updateNodeData(id, { videoUrl: res.video_url || res.url || '', promptId: res.prompt_id || res.job_id || '', isRunning: false, error: undefined });
+      const jobId = startRes.job_id;
+      useWorkflowStore.getState().updateNodeData(id, { statusMsg: 'Job queued — generating chunks...' });
+
+      // Poll every 5 seconds until done
+      while (!cancelled.current) {
+        await new Promise((r) => setTimeout(r, 5000));
+        if (cancelled.current) return;
+        
+        let status;
+        try {
+          status = await getVideoJobStatus(jobId);
+        } catch (pollErr) {
+          console.warn("Polling error (ignored):", pollErr);
+          continue;
+        }
+
+        useWorkflowStore.getState().updateNodeData(id, { statusMsg: status.message || status.status });
+        if (status.status === 'completed') {
+          useWorkflowStore.getState().updateNodeData(id, {
+            videoUrl: status.video_url || status.url || '',
+            outputs: status.outputs || [],
+            promptId: status.prompt_id || jobId,
+            isRunning: false,
+            error: undefined,
+            statusMsg: undefined,
+          });
+          break;
+        } else if (status.status === 'failed') {
+          throw new Error(status.error || status.message || 'Video generation failed');
+        }
+      }
     } catch (err) {
       if (cancelled.current) return;
-      useWorkflowStore.getState().updateNodeData(id, { error: err.message, isRunning: false });
+      useWorkflowStore.getState().updateNodeData(id, { error: err.message, isRunning: false, statusMsg: undefined });
     } finally {
       setLoading(false);
     }
@@ -1256,6 +1375,7 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -1268,21 +1388,64 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
         <Select
           value={d.current.resolution || '1024x576'}
           onChange={(e) => updateNodeData({ resolution: e.target.value })}
-          options={['512x512', '768x768', '1024x576', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
+          options={['512x512', '768x768', '1024x576', '1280x720', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
         />
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
+          <input
+            type="checkbox"
+            id={`use_sage_attention_t2v_${id}`}
+            checked={!!d.current.use_sage_attention}
+            onChange={(e) => updateNodeData({ use_sage_attention: e.target.checked })}
+            style={{ cursor: 'pointer' }}
+          />
+          <label htmlFor={`use_sage_attention_t2v_${id}`} style={{ ...labelBase, cursor: 'pointer', margin: 0 }}>Use SageAttention (Faster)</label>
+        </div>
+
         <div style={outputContainerBase}>
-          {d.current.videoUrl && (
-            <div style={{ ...outputAreaBase, wordBreak: 'break-all', maxHeight: 45 }}>
-              <a href={d.current.videoUrl} target="_blank" rel="noreferrer" style={{ color: '#63d4ff', textDecoration: 'underline' }}>
-                🎬 Play Video ({d.current.videoUrl.substring(d.current.videoUrl.lastIndexOf('/') + 1)})
-              </a>
+          {d.current.outputs && d.current.outputs.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', marginTop: 8 }}>
+              <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>Generated Scene Clips:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {d.current.outputs.map((url, idx) => {
+                  const filename = url.substring(url.lastIndexOf('/') + 1);
+                  const isActive = d.current.videoUrl === url;
+                  return (
+                    <button
+                      key={idx}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => updateNodeData({ videoUrl: url })}
+                      style={{
+                        textAlign: 'left',
+                        background: isActive ? 'rgba(99,102,241,0.3)' : 'transparent',
+                        border: 'none',
+                        color: isActive ? '#818cf8' : '#cbd5e1',
+                        fontSize: 9,
+                        padding: '2px 4px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        width: '100%',
+                        fontWeight: isActive ? 'bold' : 'normal',
+                      }}
+                      title={filename}
+                    >
+                      Clip {idx + 1}: {filename}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
           {d.current.error && !loading && (
             <div style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{d.current.error}</div>
           )}
           {loading && <NodeSpinner variant="video" />}
+          {loading && d.current.statusMsg && (
+            <div style={{ fontSize: 9, color: '#a5b4fc', padding: '2px 4px', textAlign: 'center', fontStyle: 'italic' }}>{d.current.statusMsg}</div>
+          )}
         </div>
 
         <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#6366f1', padding: '6px 0' }}>
@@ -1303,10 +1466,31 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
     useWorkflowStore.getState().updateNodeData(id, patch);
   };
 
+  const projectPath = useWorkflowStore((s) => s.projectPath);
+
+  useEffect(() => {
+    if (d.current.videoUrl && (!d.current.outputs || d.current.outputs.length === 0)) {
+      const fetchOutputs = async () => {
+        try {
+          const res = await fetch(`http://127.0.0.1:8000/api/projects/list-video-outputs?video_url=${encodeURIComponent(d.current.videoUrl)}&project_path=${encodeURIComponent(projectPath || '')}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.outputs && data.outputs.length > 0) {
+              updateNodeData({ outputs: data.outputs });
+            }
+          }
+        } catch (e) {
+          console.error("Failed to auto-populate outputs list:", e);
+        }
+      };
+      fetchOutputs();
+    }
+  }, [d.current.videoUrl, projectPath]);
+
   const handleGenerate = async () => {
     cancelled.current = false;
     setLoading(true);
-    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined });
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined, statusMsg: 'Starting...' });
     try {
       const inputs = getConnectedInputs(id);
       
@@ -1315,7 +1499,8 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
         const outputs = inputs.prompts.outputs || [];
         if (outputs.length > 0) {
           const url = outputs[0];
-          conceptsFile = url.substring(url.lastIndexOf('/') + 1);
+          const cleanUrl = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+          conceptsFile = cleanUrl.includes('/output/') ? cleanUrl.substring(cleanUrl.indexOf('/output/') + 8) : cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
         }
       }
 
@@ -1343,14 +1528,14 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
       const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
       const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
       const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || d.current.audioUrl || '';
-      const projectPath = useWorkflowStore.getState().projectPath;
+      const projectPathVal = useWorkflowStore.getState().projectPath;
 
-      const res = await generateVideo({
-        mode: 'i2v',
+      const jobParams = {
         audio_path: activeAudioUrl,
-        project_path: projectPath,
+        project_path: projectPathVal,
         prompts: inputs.prompt || (inputs.prompts && typeof inputs.prompts === 'string' ? inputs.prompts : '') || d.current.prompt || '',
         concepts_file: conceptsFile || inputs.concepts_file || d.current.concepts_file || undefined,
+        use_sage_attention: !!(inputs.use_sage_attention ?? d.current.use_sage_attention),
         image: inputs.imageUrl || d.current.imageUrl || undefined,
         fps: inputs.fps ?? d.current.fps ?? 24,
         resolution: inputs.resolution || d.current.resolution || '1024x576',
@@ -1358,7 +1543,6 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
         height: inputs.height ?? d.current.height ?? 576,
         seed: inputs.seed ?? d.current.seed ?? -1,
         camera_motion: inputs.cameraMotion || d.current.cameraMotion || 'Static',
-        // Model parameters
         ltx_gguf: inputs.ltx_gguf || d.current.ltx_gguf || 'VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q4_0.gguf',
         video_vae: inputs.video_vae || d.current.video_vae || 'LTX 2\\LTX23_video_vae_bf16.safetensors',
         gemma_clip: inputs.gemma_clip || d.current.gemma_clip || 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors',
@@ -1369,7 +1553,6 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
         z_image_clip: inputs.z_image_clip || d.current.z_image_clip || 'qwen_3_4b.safetensors',
         z_image_vae: inputs.z_image_vae || d.current.z_image_vae || 'ae.safetensors',
         supergemma_llm: inputs.supergemma_llm || d.current.supergemma_llm || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf',
-        // LoRAs
         use_custom_loras: inputs.use_custom_loras || d.current.use_custom_loras || 'OFF',
         lora_trigger_word: !!(inputs.lora_trigger_word ?? d.current.lora_trigger_word),
         lora_trigger_text: inputs.lora_trigger_text || d.current.lora_trigger_text || '',
@@ -1380,7 +1563,6 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
         z_lora_trigger_text: inputs.z_lora_trigger_text || d.current.z_lora_trigger_text || '',
         z_image_lora_count: inputs.z_image_lora_count ?? d.current.z_image_lora_count ?? 1,
         ...loraParams,
-        // Advanced Custom Lists
         advanced_enabled: !!(inputs.advanced_enabled ?? d.current.advanced_enabled),
         settings_count: inputs.settings_count ?? d.current.settings_count ?? 2,
         selection_mode_all: inputs.selection_mode_all || d.current.selection_mode_all || 'Index-based',
@@ -1394,12 +1576,46 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
         character_motion_items: inputs.character_motion_items ?? d.current.character_motion_items ?? 1,
         camera_motion_template: inputs.camera_motion_template || d.current.camera_motion_template || 'start with {item1} then follow with {item2}',
         character_motion_template: inputs.character_motion_template || d.current.character_motion_template || 'start with {item1} then follow with {item2}',
-      });
+      };
+
+      // Start the async job — returns immediately with a job_id
+      const startRes = await startVideoJob('i2v', jobParams);
       if (cancelled.current) return;
-      useWorkflowStore.getState().updateNodeData(id, { videoUrl: res.video_url || res.url || '', imageUrl: inputs.imageUrl || d.current.imageUrl || undefined, promptId: res.prompt_id || res.job_id || '', isRunning: false, error: undefined });
+      const jobId = startRes.job_id;
+      useWorkflowStore.getState().updateNodeData(id, { statusMsg: 'Job queued — generating chunks...' });
+
+      // Poll every 5 seconds until done
+      while (!cancelled.current) {
+        await new Promise((r) => setTimeout(r, 5000));
+        if (cancelled.current) return;
+        
+        let status;
+        try {
+          status = await getVideoJobStatus(jobId);
+        } catch (pollErr) {
+          console.warn("Polling error (ignored):", pollErr);
+          continue;
+        }
+
+        useWorkflowStore.getState().updateNodeData(id, { statusMsg: status.message || status.status });
+        if (status.status === 'completed') {
+          useWorkflowStore.getState().updateNodeData(id, {
+            videoUrl: status.video_url || status.url || '',
+            outputs: status.outputs || [],
+            imageUrl: inputs.imageUrl || d.current.imageUrl || undefined,
+            promptId: status.prompt_id || jobId,
+            isRunning: false,
+            error: undefined,
+            statusMsg: undefined,
+          });
+          break;
+        } else if (status.status === 'failed') {
+          throw new Error(status.error || status.message || 'Video generation failed');
+        }
+      }
     } catch (err) {
       if (cancelled.current) return;
-      useWorkflowStore.getState().updateNodeData(id, { error: err.message, isRunning: false });
+      useWorkflowStore.getState().updateNodeData(id, { error: err.message, isRunning: false, statusMsg: undefined });
     } finally {
       setLoading(false);
     }
@@ -1409,6 +1625,7 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -1421,21 +1638,64 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
         <Select
           value={d.current.resolution || '1024x576'}
           onChange={(e) => updateNodeData({ resolution: e.target.value })}
-          options={['512x512', '768x768', '1024x576', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
+          options={['512x512', '768x768', '1024x576', '1280x720', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
         />
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
+          <input
+            type="checkbox"
+            id={`use_sage_attention_i2v_${id}`}
+            checked={!!d.current.use_sage_attention}
+            onChange={(e) => updateNodeData({ use_sage_attention: e.target.checked })}
+            style={{ cursor: 'pointer' }}
+          />
+          <label htmlFor={`use_sage_attention_i2v_${id}`} style={{ ...labelBase, cursor: 'pointer', margin: 0 }}>Use SageAttention (Faster)</label>
+        </div>
+
         <div style={outputContainerBase}>
-          {d.current.videoUrl && (
-            <div style={{ ...outputAreaBase, wordBreak: 'break-all', maxHeight: 45 }}>
-              <a href={d.current.videoUrl} target="_blank" rel="noreferrer" style={{ color: '#63d4ff', textDecoration: 'underline' }}>
-                🎬 Play Video ({d.current.videoUrl.substring(d.current.videoUrl.lastIndexOf('/') + 1)})
-              </a>
+          {d.current.outputs && d.current.outputs.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', marginTop: 8 }}>
+              <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>Generated Scene Clips:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {d.current.outputs.map((url, idx) => {
+                  const filename = url.substring(url.lastIndexOf('/') + 1);
+                  const isActive = d.current.videoUrl === url;
+                  return (
+                    <button
+                      key={idx}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => updateNodeData({ videoUrl: url })}
+                      style={{
+                        textAlign: 'left',
+                        background: isActive ? 'rgba(99,102,241,0.3)' : 'transparent',
+                        border: 'none',
+                        color: isActive ? '#818cf8' : '#cbd5e1',
+                        fontSize: 9,
+                        padding: '2px 4px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        width: '100%',
+                        fontWeight: isActive ? 'bold' : 'normal',
+                      }}
+                      title={filename}
+                    >
+                      Clip {idx + 1}: {filename}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
           {d.current.error && !loading && (
             <div style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{d.current.error}</div>
           )}
           {loading && <NodeSpinner variant="video" />}
+          {loading && d.current.statusMsg && (
+            <div style={{ fontSize: 9, color: '#a5b4fc', padding: '2px 4px', textAlign: 'center', fontStyle: 'italic' }}>{d.current.statusMsg}</div>
+          )}
         </div>
 
         <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#4f46e5', padding: '6px 0' }}>
@@ -1901,6 +2161,18 @@ const ZImageLoRASettingsNode = React.memo(function ZImageLoRASettingsNode({ data
   );
 });
 
+const ADVANCED_PRESETS = {
+  'Camera Motion': 'Slow push-in\nTrack right\nTrack left\nDolly backward\nHandheld follow\nOver-the-shoulder push-in\nSlow pan right\nSlow pan left\nTilt up\nTilt down\nArc around subject\nOrbit shot\nLow-angle tracking shot\nCrane rising move\nSlow zoom-in',
+  'Character Movement/Motion': 'Walks toward camera with confident swagger\nStrides across the frame\nLeans toward the camera\nPoints into the lens\nThrows arms wide\nRaises both hands overhead\nRuns a hand through their hair\nSlowly backs away from the camera\nDrops to one knee\nThrows their head back\nWhips a jacket off one shoulder\nStomps forward with attitude\nTilts chin upward\nReaches toward the camera\nCollapses dramatically to the floor',
+  'Lighting': 'Soft natural light\nHard direct sunlight\nWarm tungsten light\nCool fluorescent light\nNeon nightclub light\nMoody low-key lighting\nHigh-key studio lighting\nBacklit silhouette\nRim lighting\nSide lighting\nTop-down lighting\nUnderlighting\nGolden hour light\nBlue hour light\nStrobe lighting',
+  'Time of Day': 'Pre-dawn\nDawn\nEarly morning\nMid-morning\nLate morning\nNoon\nEarly afternoon\nMid-afternoon\nLate afternoon\nGolden hour\nSunset\nDusk\nBlue hour\nNight\nAfter midnight',
+  'Weather': 'Clear sky\nPartly cloudy\nOvercast\nLight rain\nHeavy rain\nThunderstorm\nDrizzle\nFog\nMist\nSnowfall\nBlizzard\nHail\nStrong wind\nDust storm\nHumid haze',
+  'Dialogue': 'Speaking confidently\nWhispering quietly\nShouting in anger\nLaughing during conversation\nNodding in agreement',
+  'Facial Expression': 'Calm expression\nSerious expression\nConfident smirk\nCold stare\nWorried expression\nSad expression\nAngry glare\nFearful expression\nSurprised expression\nBlank expression\nDreamy expression\nSuspicious look\nPained expression\nDefiant expression\nSoft smile',
+  'Emotion': 'Joyful\nMelancholic\nAnxious\nFurious\nHeartbroken\nHopeful\nJealous\nLonely\nNostalgic\nConflicted\nEuphoric\nAshamed\nDetermined\nVengeful\nPeaceful',
+  'Custom': ''
+};
+
 const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode({ data, id, selected }) {
   const d = useRef(data);
   d.current = data;
@@ -1911,7 +2183,7 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
 
   return (
     <BaseNode title="Video Advanced Settings" color="#1e1b4b" selected={selected} nodeId={id} data={data} outputHandles={videoAdvancedSettingsOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', flex: 1, minHeight: 0, minWidth: 200, maxHeight: 350, overflowY: 'auto', paddingRight: 4 }} className="nodrag">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', flex: 1, minHeight: 0, minWidth: 200, height: '100%', overflowY: 'auto', paddingRight: 4 }} className="nodrag">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
             <input type="checkbox" checked={!!d.current.advanced_enabled} onChange={(e) => updateNodeData({ advanced_enabled: e.target.checked })} style={{ cursor: 'pointer' }} />
@@ -1946,8 +2218,25 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
                   <div style={labelBase}>Preset</div>
                   <Select
                     value={d.current.camera_motion_preset || 'Camera Motion'}
-                    onChange={(e) => updateNodeData({ camera_motion_preset: e.target.value })}
-                    options={[{ value: 'Camera Motion', label: 'Camera Motion' }]}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const patch = { camera_motion_preset: val };
+                      if (ADVANCED_PRESETS[val] !== undefined) {
+                        patch.camera_motion_list = ADVANCED_PRESETS[val];
+                      }
+                      updateNodeData(patch);
+                    }}
+                    options={[
+                      { value: 'Camera Motion', label: 'Camera Motion' },
+                      { value: 'Character Movement/Motion', label: 'Character/Character Movement' },
+                      { value: 'Lighting', label: 'Lighting' },
+                      { value: 'Time of Day', label: 'Time of Day' },
+                      { value: 'Weather', label: 'Weather' },
+                      { value: 'Dialogue', label: 'Dialogue' },
+                      { value: 'Facial Expression', label: 'Facial Expression' },
+                      { value: 'Emotion', label: 'Emotion' },
+                      { value: 'Custom', label: 'Custom' }
+                    ]}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -1955,7 +2244,11 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
                   <Select
                     value={d.current.camera_motion_sel_mode || 'index'}
                     onChange={(e) => updateNodeData({ camera_motion_sel_mode: e.target.value })}
-                    options={[{ value: 'index', label: 'index' }]}
+                    options={[
+                      { value: 'index', label: 'index' },
+                      { value: 'random', label: 'random' },
+                      { value: 'random no repeat', label: 'random no repeat' }
+                    ]}
                   />
                 </div>
               </div>
@@ -1972,7 +2265,7 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
               </div>
 
               <div style={labelBase}>List (One entry per line)</div>
-              <textarea value={d.current.camera_motion_list ?? 'Slow push-in\nTrack right\nTrack left\nDolly backward\nHandheld follow\nOver-the-shoulder push-in\nSlow pan right\nSlow pan left'} onChange={(e) => updateNodeData({ camera_motion_list: e.target.value })} style={{ ...inputBase, height: 60, resize: 'none' }} />
+              <textarea value={d.current.camera_motion_list ?? ADVANCED_PRESETS['Camera Motion']} onChange={(e) => updateNodeData({ camera_motion_list: e.target.value })} style={{ ...inputBase, height: 60, resize: 'none' }} />
             </div>
 
             {divider}
@@ -1985,8 +2278,25 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
                   <div style={labelBase}>Preset</div>
                   <Select
                     value={d.current.character_motion_preset || 'Character Movement/Motion'}
-                    onChange={(e) => updateNodeData({ character_motion_preset: e.target.value })}
-                    options={[{ value: 'Character Movement/Motion', label: 'Character Movement/Motion' }]}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const patch = { character_motion_preset: val };
+                      if (ADVANCED_PRESETS[val] !== undefined) {
+                        patch.character_motion_list = ADVANCED_PRESETS[val];
+                      }
+                      updateNodeData(patch);
+                    }}
+                    options={[
+                      { value: 'Camera Motion', label: 'Camera Motion' },
+                      { value: 'Character Movement/Motion', label: 'Character/Character Movement' },
+                      { value: 'Lighting', label: 'Lighting' },
+                      { value: 'Time of Day', label: 'Time of Day' },
+                      { value: 'Weather', label: 'Weather' },
+                      { value: 'Dialogue', label: 'Dialogue' },
+                      { value: 'Facial Expression', label: 'Facial Expression' },
+                      { value: 'Emotion', label: 'Emotion' },
+                      { value: 'Custom', label: 'Custom' }
+                    ]}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -1994,7 +2304,11 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
                   <Select
                     value={d.current.character_motion_sel_mode || 'index'}
                     onChange={(e) => updateNodeData({ character_motion_sel_mode: e.target.value })}
-                    options={[{ value: 'index', label: 'index' }]}
+                    options={[
+                      { value: 'index', label: 'index' },
+                      { value: 'random', label: 'random' },
+                      { value: 'random no repeat', label: 'random no repeat' }
+                    ]}
                   />
                 </div>
               </div>
@@ -2011,7 +2325,7 @@ const VideoAdvancedSettingsNode = React.memo(function VideoAdvancedSettingsNode(
               </div>
 
               <div style={labelBase}>List (One entry per line)</div>
-              <textarea value={d.current.character_motion_list ?? 'Walks toward camera with confident swagger\nStrides across the frame\nTurns head to look directly at lens'} onChange={(e) => updateNodeData({ character_motion_list: e.target.value })} style={{ ...inputBase, height: 60, resize: 'none' }} />
+              <textarea value={d.current.character_motion_list ?? ADVANCED_PRESETS['Character Movement/Motion']} onChange={(e) => updateNodeData({ character_motion_list: e.target.value })} style={{ ...inputBase, height: 60, resize: 'none' }} />
             </div>
           </React.Fragment>
         )}
@@ -2052,6 +2366,7 @@ const ImageGeneratorNode = React.memo(function ImageGeneratorNode({ data, id, se
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
@@ -2166,20 +2481,38 @@ const VideoAudioCombinerNode = React.memo(function VideoAudioCombinerNode({ data
   const d = useRef(data);
   d.current = data;
 
+  const edges = useWorkflowStore((s) => s.edges);
+  const nodes = useWorkflowStore((s) => s.nodes);
+
+  // Live input resolution for timeline display
+  const incoming = edges.filter((e) => e.target === id);
+  const map = {};
+  for (const n of nodes) map[n.id] = n;
+  const liveInputs = {};
+  for (const edge of incoming) {
+    const src = map[edge.source];
+    if (src) Object.assign(liveInputs, src.data);
+  }
+
+  let liveVideos = [];
+  if (liveInputs.outputs && Array.isArray(liveInputs.outputs) && liveInputs.outputs.length > 0) {
+    liveVideos = liveInputs.outputs;
+  } else {
+    const fallback = liveInputs.videoUrl || d.current.videoUrl || '';
+    if (fallback) liveVideos = [fallback];
+  }
+  const liveAudio = liveInputs.audioUrl || d.current.audioUrl || '';
+
   const handleCombine = async () => {
     cancelled.current = false;
     setLoading(true);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined });
     try {
-      const inputs = getConnectedInputs(id);
-      const videoUrl = inputs.videoUrl || d.current.videoUrl || '';
-      const audioUrl = inputs.audioUrl || d.current.audioUrl || '';
-      
-      if (!videoUrl || !audioUrl) {
+      if (liveVideos.length === 0 || !liveAudio) {
         throw new Error('Missing video or audio input! Connect both to combine.');
       }
-      
-      const res = await combineVideoAudio(videoUrl, audioUrl);
+      const projectPath = useWorkflowStore.getState().projectPath;
+      const res = await combineVideoAudio(liveVideos, liveAudio, projectPath);
       if (cancelled.current) return;
       useWorkflowStore.getState().updateNodeData(id, { videoUrl: res.video_url || res.url || '', isRunning: false, error: undefined });
     } catch (err) {
@@ -2194,11 +2527,49 @@ const VideoAudioCombinerNode = React.memo(function VideoAudioCombinerNode({ data
     cancelled.current = true;
     setLoading(false);
     useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
   };
 
   return (
     <BaseNode title="Video & Audio Combiner" color="#10b981" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={combinerInputs} outputHandles={combinerOut}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, width: '100%', minWidth: 200 }} className="nodrag">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0, width: '100%', minWidth: 260 }} className="nodrag">
+        
+        {/* Timeline Visualization */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 6, border: '1px solid rgba(16,185,129,0.2)' }}>
+          {/* Video Track */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 9, color: '#10b981', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+              <span>🎬 Video Track</span>
+              <span>{liveVideos.length} clip{liveVideos.length !== 1 && 's'}</span>
+            </div>
+            <div style={{ display: 'flex', height: 24, background: 'rgba(0,0,0,0.4)', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(16,185,129,0.3)' }}>
+              {liveVideos.length > 0 ? (
+                liveVideos.map((url, i) => (
+                  <div key={i} style={{ flex: 1, borderRight: i < liveVideos.length - 1 ? '1px solid rgba(0,0,0,0.5)' : 'none', background: 'linear-gradient(180deg, rgba(16,185,129,0.4) 0%, rgba(16,185,129,0.2) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }} title={url}>
+                    <span style={{ fontSize: 8, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', padding: '0 4px' }}>Clip {i+1}</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 9 }}>No Video Connected</div>
+              )}
+            </div>
+          </div>
+
+          {/* Audio Track */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 9, color: '#f59e0b', fontWeight: 600 }}>🎵 Audio Track</div>
+            <div style={{ display: 'flex', height: 20, background: 'rgba(0,0,0,0.4)', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(245,158,11,0.3)' }}>
+              {liveAudio ? (
+                <div style={{ flex: 1, background: 'linear-gradient(180deg, rgba(245,158,11,0.4) 0%, rgba(245,158,11,0.2) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }} title={liveAudio}>
+                  <span style={{ fontSize: 8, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', padding: '0 4px' }}>Audio Track</span>
+                </div>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 9 }}>No Audio Connected</div>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div style={outputContainerBase}>
           {d.current.videoUrl && (
             <div style={{ ...outputAreaBase, wordBreak: 'break-all', maxHeight: 60 }}>
@@ -2213,8 +2584,141 @@ const VideoAudioCombinerNode = React.memo(function VideoAudioCombinerNode({ data
           {loading && <NodeSpinner variant="video" />}
         </div>
 
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleCombine} style={{ ...btnBase, background: loading ? '#ef4444' : '#10b981', padding: '6px 0' }}>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleCombine} disabled={liveVideos.length === 0 || !liveAudio} style={{ ...btnBase, background: loading ? '#ef4444' : (liveVideos.length === 0 || !liveAudio) ? '#475569' : '#10b981', padding: '6px 0', cursor: (liveVideos.length === 0 || !liveAudio) ? 'not-allowed' : 'pointer', opacity: (liveVideos.length === 0 || !liveAudio) ? 0.5 : 1 }}>
           {loading ? 'Cancel' : 'Combine Video & Audio'}
+        </button>
+      </div>
+    </BaseNode>
+  );
+});
+
+const upscaleInputs = [
+  { id: 'video', label: 'Input Video 🎬', type: 'video' }
+];
+const upscaleOut = [
+  { id: 'video', label: 'Upscaled Video 🎬', type: 'video' }
+];
+
+const VideoUpscalerNode = React.memo(function VideoUpscalerNode({ data, id, selected }) {
+  const d = useRef(data);
+  d.current = data;
+  const [loading, setLoading] = useState(false);
+  const cancelled = useRef(false);
+
+  const updateNodeData = (patch) => {
+    useWorkflowStore.getState().updateNodeData(id, patch);
+  };
+
+  useEffect(() => {
+    cancelled.current = false;
+    return () => {
+      cancelled.current = true;
+    };
+  }, []);
+
+  const handleUpscale = async () => {
+    setLoading(true);
+    updateNodeData({ isRunning: true, error: undefined, statusMsg: 'Job queued — upscaling video...' });
+    try {
+      const inputs = getConnectedInputs(id);
+      const projectPath = useWorkflowStore.getState().projectPath;
+
+      const videoVal = inputs.videoUrl || inputs.video || d.current.videoUrl || '';
+      
+      const payload = {
+        project_path: projectPath,
+        video_path: videoVal,
+        resolution: d.current.resolution || 1080,
+        batch_size: d.current.batch_size ?? 33,
+        temporal_overlap: d.current.temporal_overlap ?? 3,
+      };
+
+      const startRes = await startVideoJob('upscale', payload);
+      if (cancelled.current) return;
+      const jobId = startRes.job_id;
+
+      while (!cancelled.current) {
+        await new Promise((r) => setTimeout(r, 5000));
+        if (cancelled.current) return;
+        
+        let status;
+        try {
+          status = await getVideoJobStatus(jobId);
+        } catch (pollErr) {
+          console.warn("Polling error (ignored):", pollErr);
+          continue;
+        }
+
+        updateNodeData({ statusMsg: status.message || status.status });
+        if (status.status === 'completed') {
+          updateNodeData({
+            videoUrl: status.video_url || status.url || '',
+            promptId: status.prompt_id || jobId,
+            isRunning: false,
+            error: undefined,
+            statusMsg: undefined
+          });
+          break;
+        } else if (status.status === 'failed') {
+          throw new Error(status.error || status.message || 'Upscale failed');
+        }
+      }
+    } catch (err) {
+      if (cancelled.current) return;
+      updateNodeData({ error: err.message, isRunning: false, statusMsg: undefined });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setLoading(false);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
+  };
+
+  return (
+    <BaseNode title="Video Upscaler (SeedVR2)" color="#8b5cf6" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={upscaleInputs} outputHandles={upscaleOut}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0, width: '100%', minWidth: 200 }} className="nodrag">
+        <div style={labelBase}>Target Height (Resolution)</div>
+        <Select
+          value={String(d.current.resolution || '1080')}
+          onChange={(e) => updateNodeData({ resolution: Number(e.target.value) })}
+          options={[
+            { value: '720', label: '720p (HD)' },
+            { value: '1080', label: '1080p (FHD)' },
+            { value: '2160', label: '4K (UHD)' }
+          ]}
+        />
+
+        <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ flex: 1 }}>
+            <div style={labelBase}>Batch Size</div>
+            <input type="number" value={d.current.batch_size ?? 33} onChange={(e) => updateNodeData({ batch_size: Number(e.target.value) })} style={inputBase} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={labelBase}>Overlap</div>
+            <input type="number" value={d.current.temporal_overlap ?? 3} onChange={(e) => updateNodeData({ temporal_overlap: Number(e.target.value) })} style={inputBase} />
+          </div>
+        </div>
+
+        <div style={outputContainerBase}>
+          {d.current.videoUrl && (
+            <div style={{ ...outputAreaBase, wordBreak: 'break-all', maxHeight: 60 }}>
+              <a href={d.current.videoUrl} target="_blank" rel="noreferrer" style={{ color: '#63d4ff', textDecoration: 'underline' }}>
+                🎬 Play Upscaled ({d.current.videoUrl.substring(d.current.videoUrl.lastIndexOf('/') + 1)})
+              </a>
+            </div>
+          )}
+          {d.current.error && !loading && (
+            <div style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{d.current.error}</div>
+          )}
+          {loading && <NodeSpinner variant="video" />}
+        </div>
+
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleUpscale} style={{ ...btnBase, background: loading ? '#ef4444' : '#8b5cf6', padding: '6px 0' }}>
+          {loading ? 'Cancel' : 'Upscale Video'}
         </button>
       </div>
     </BaseNode>
@@ -2237,4 +2741,5 @@ export {
   VideoAdvancedSettingsNode,
   ImageGeneratorNode,
   VideoAudioCombinerNode,
+  VideoUpscalerNode,
 };

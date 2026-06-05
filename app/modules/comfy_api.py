@@ -67,9 +67,35 @@ class ComfyUIClient:
         session = await self._get_session()
         async with session.post(
             f"{self.base_url}/queue",
-            json={"action": "cancel"},
+            json={"action": "delete", "delete": [prompt_id]},
         ) as resp:
             resp.raise_for_status()
+
+    async def cancel_all_prompts(self) -> list[str]:
+        """Cancel all pending and running prompts in ComfyUI."""
+        cancelled_ids = []
+        try:
+            queue = await self.get_queue()
+            running = queue.get("queue_running", [])
+            pending = queue.get("queue_pending", [])
+            
+            for item in pending:
+                if len(item) > 1:
+                    pid = item[1]
+                    await self.cancel_prompt(pid)
+                    cancelled_ids.append(pid)
+            
+            for item in running:
+                if len(item) > 1:
+                    pid = item[1]
+                    await self.cancel_prompt(pid)
+                    cancelled_ids.append(pid)
+                    
+            await self.interrupt()
+        except Exception as e:
+            logger.error("Failed to cancel all prompts: %s", e)
+        return cancelled_ids
+
 
     async def enqueue_workflow(self, workflow: dict) -> str:
         """Enqueue a workflow for execution and return the prompt_id.
@@ -155,12 +181,13 @@ class ComfyUIClient:
             result = await resp.json()
             return result.get("name", path.name)
 
-    async def wait_for_job(self, prompt_id: str, timeout: int = 3600) -> dict:
+    async def wait_for_job(self, prompt_id: str, timeout: int = 3600, check_cancelled = None) -> dict:
         """Poll ComfyUI until a job completes or the timeout is reached.
 
         Args:
             prompt_id: The prompt_id to wait for.
             timeout: Maximum seconds to wait (default 3600).
+            check_cancelled: Optional callable returning True if job should be aborted.
 
         Returns:
             The full history entry for the completed job.
@@ -173,6 +200,9 @@ class ComfyUIClient:
         elapsed = 0.0
 
         while elapsed < timeout:
+            if check_cancelled and check_cancelled():
+                raise asyncio.CancelledError("Job was cancelled by user")
+
             history = await self.get_history(prompt_id)
             if history and prompt_id in history:
                 entry = history[prompt_id]

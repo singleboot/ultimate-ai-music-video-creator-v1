@@ -10,6 +10,7 @@ export default function WorkflowControls({ onRun }) {
   const projectPath = useWorkflowStore((s) => s.projectPath);
   const setProjectPath = useWorkflowStore((s) => s.setProjectPath);
   const saveWorkflow = useWorkflowStore((s) => s.saveWorkflow);
+  const saveWorkflowAs = useWorkflowStore((s) => s.saveWorkflowAs);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
   const clearWorkflow = useWorkflowStore((s) => s.clearWorkflow);
   const openProjectFolder = useWorkflowStore((s) => s.openProjectFolder);
@@ -22,6 +23,7 @@ export default function WorkflowControls({ onRun }) {
   const [nameInput, setNameInput] = useState(workflowName);
   const [showSettings, setShowSettings] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [saveAsMsg, setSaveAsMsg] = useState('');
   const dropdownRef = useRef(null);
 
   const handleOpenFolder = async () => {
@@ -71,6 +73,22 @@ export default function WorkflowControls({ onRun }) {
       setSaveMsg('Save failed');
     }
     setTimeout(() => setSaveMsg(''), 2000);
+  };
+
+  const handleSaveAs = async () => {
+    const newName = window.prompt('Enter new project name:', workflowName ? `${workflowName} Copy` : 'Untitled Copy');
+    if (newName && newName.trim()) {
+      try {
+        setSaveAsMsg('Saving...');
+        await saveWorkflowAs(newName.trim());
+        setSaveAsMsg('Saved Copy!');
+      } catch (e) {
+        console.error(e);
+        alert(e.message || 'Failed to save copy');
+        setSaveAsMsg('Failed');
+      }
+      setTimeout(() => setSaveAsMsg(''), 2000);
+    }
   };
 
   const handleClear = () => {
@@ -320,6 +338,9 @@ export default function WorkflowControls({ onRun }) {
 
       {/* Save */}
         <ToolbarButton onClick={handleSave} label={saveMsg || 'Save'} variant={saveMsg ? 'success' : 'default'} />
+
+      {/* Save As */}
+        <ToolbarButton onClick={handleSaveAs} label={saveAsMsg || 'Save As'} variant={saveAsMsg === 'Saved Copy!' ? 'success' : 'default'} />
 
 
 
