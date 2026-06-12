@@ -27,10 +27,9 @@ function safeDeserialize(str) {
   return parsed;
 }
 
-const undoStack = [];
-const maxHistory = 40;
+const MAX_HISTORY = 40;
 
-function pushToUndo(nodes, edges) {
+function pushToUndo(nodes, edges, undoStack) {
   try {
     const snapshot = {
       nodes: JSON.parse(JSON.stringify(nodes, (k, v) => {
@@ -40,16 +39,16 @@ function pushToUndo(nodes, edges) {
       })),
       edges: JSON.parse(JSON.stringify(edges)),
     };
-    
+
     if (undoStack.length > 0) {
       const last = undoStack[undoStack.length - 1];
-      if (JSON.stringify(last.nodes) === JSON.stringify(snapshot.nodes) && 
+      if (JSON.stringify(last.nodes) === JSON.stringify(snapshot.nodes) &&
           JSON.stringify(last.edges) === JSON.stringify(snapshot.edges)) {
         return;
       }
     }
 
-    if (undoStack.length >= maxHistory) {
+    if (undoStack.length >= MAX_HISTORY) {
       undoStack.shift();
     }
     undoStack.push(snapshot);
@@ -67,25 +66,28 @@ const useWorkflowStore = create(
       workflowName: 'Untitled Workflow',
       projectPath: '',
       savedWorkflows: [],
+      _undoStack: [],
 
       undo: () => {
-        if (undoStack.length === 0) return;
-        const prev = undoStack.pop();
+        const stack = get()._undoStack;
+        if (stack.length === 0) return;
+        const prev = stack.pop();
         set({
           nodes: prev.nodes,
           edges: prev.edges,
           selectedNodeId: null,
+          _undoStack: [...stack],
         });
       },
 
       hasUndoHistory: () => {
-        return undoStack.length > 0;
+        return get()._undoStack.length > 0;
       },
 
       onNodesChange: (changes) => {
         const hasRemove = changes.some((c) => c.type === 'remove');
         if (hasRemove) {
-          pushToUndo(get().nodes, get().edges);
+          pushToUndo(get().nodes, get().edges, get()._undoStack);
         }
         set((state) => {
           const next = applyNodeChanges(state.nodes, changes);
@@ -96,7 +98,7 @@ const useWorkflowStore = create(
       onEdgesChange: (changes) => {
         const hasStructChange = changes.some((c) => c.type === 'add' || c.type === 'remove');
         if (hasStructChange) {
-          pushToUndo(get().nodes, get().edges);
+          pushToUndo(get().nodes, get().edges, get()._undoStack);
         }
         set((state) => {
           const next = applyEdgeChanges(state.edges, changes);
@@ -105,14 +107,14 @@ const useWorkflowStore = create(
       },
 
       addNode: (node) => {
-        pushToUndo(get().nodes, get().edges);
+        pushToUndo(get().nodes, get().edges, get()._undoStack);
         set((state) => ({
           nodes: [...state.nodes, node],
         }));
       },
 
       removeNode: (nodeId) => {
-        pushToUndo(get().nodes, get().edges);
+        pushToUndo(get().nodes, get().edges, get()._undoStack);
         set((state) => ({
           nodes: state.nodes.filter((n) => n.id !== nodeId),
           edges: state.edges.filter(
@@ -387,7 +389,7 @@ const useWorkflowStore = create(
         const { savedWorkflows } = get();
         const wf = savedWorkflows.find((w) => w.id === workflowId);
         if (!wf) return false;
-        pushToUndo(get().nodes, get().edges);
+        pushToUndo(get().nodes, get().edges, get()._undoStack);
         set({
           nodes: JSON.parse(JSON.stringify(wf.nodes)),
           edges: JSON.parse(JSON.stringify(wf.edges)),
@@ -410,7 +412,7 @@ const useWorkflowStore = create(
           if (response.ok) {
             const data = await response.json();
             if (data.status === 'ok') {
-              pushToUndo(get().nodes, get().edges);
+              pushToUndo(get().nodes, get().edges, get()._undoStack);
               const wf = data.workflow;
               if (wf) {
                 set({
@@ -445,7 +447,7 @@ const useWorkflowStore = create(
       },
 
       clearWorkflow: () => {
-        pushToUndo(get().nodes, get().edges);
+        pushToUndo(get().nodes, get().edges, get()._undoStack);
         set({
           nodes: [],
           edges: [],

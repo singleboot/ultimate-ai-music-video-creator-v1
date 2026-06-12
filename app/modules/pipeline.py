@@ -413,6 +413,178 @@ class PipelineRunner:
         logger.info("Lyrics generated (%d chars) for job %s", len(raw_text), prompt_id)
         return raw_text
 
+    async def run_smart_lyrics(self, params: dict) -> str:
+        """Smart lyrics generation with mixed language, parody, bhajan, etc.
+
+        Uses Gemma4 via the same _build_lyrics_workflow() pattern as run_generate_lyrics.
+
+        Args:
+            params: Dict with keys:
+                - mode (str): "generate_new" or "adapt_existing"
+                - input_type (str): "theme", "lyrics", or "youtube"
+                - theme (str): Theme/description text
+                - existing_lyrics (str): Paste-in lyrics for adapt mode
+                - youtube_url (str): YouTube URL for song-inspired generation
+                - transformation (str): "parody", "bhajan", "love", etc.
+                - genre (str): Music genre
+                - languages (list[str]): Target languages, e.g. ["hi", "en"]
+                - language_override (str): "hindi_only" | "english_only" | "hindi_english_mix" | ""
+                - structure (str): Song structure
+                - duration (int): Target duration in seconds
+                - seed (int): Random seed
+
+        Returns:
+            The generated lyrics text.
+        """
+        mode = params.get("mode", "generate_new")
+        input_type = params.get("input_type", "theme")
+        transformation = params.get("transformation", "")
+        languages = params.get("languages", ["en"])
+        lang_override = params.get("language_override", "")
+        duration = int(params.get("duration", 30))
+        seed = params.get("seed", random.randint(0, 2**32 - 1))
+        length_hint = _duration_to_lyrics_hint(duration)
+
+        youtube_title = ""
+        if input_type == "youtube" and params.get("youtube_url"):
+            youtube_title = await self._extract_youtube_title(params["youtube_url"])
+
+        prompt_text = self._build_smart_lyrics_prompt(
+            mode=mode,
+            input_type=input_type,
+            theme=params.get("theme", ""),
+            existing_lyrics=params.get("existing_lyrics", ""),
+            youtube_title=youtube_title,
+            transformation=transformation,
+            genre=params.get("genre", "pop"),
+            languages=languages,
+            lang_override=lang_override,
+            structure=params.get("structure", "Verse-Chorus"),
+            length_hint=length_hint,
+        )
+
+        workflow = _build_lyrics_workflow()
+        workflow["2"]["inputs"]["prompt"] = prompt_text
+        workflow["2"]["inputs"]["sampling_mode.seed"] = seed
+
+        prompt_id = await self.comfy.enqueue_workflow(workflow)
+        logger.info("Enqueued smart lyrics job: prompt_id=%s", prompt_id)
+
+        try:
+            history = await self.comfy.wait_for_job(prompt_id, timeout=1800)
+        except Exception as e:
+            logger.error("Smart lyrics job %s failed: %s", prompt_id, e)
+            raise RuntimeError(f"Smart lyrics generation failed: {e}")
+
+        outputs = history.get("outputs", {})
+        node_out = outputs.get("3", {})
+        raw_text = node_out.get("text", "") or node_out.get("string", "") or ""
+
+        if isinstance(raw_text, list):
+            raw_text = "\n".join(part for part in raw_text if isinstance(part, str))
+
+        raw_text = raw_text.strip()
+
+        if not raw_text:
+            logger.warning("Smart lyrics job %s returned empty text", prompt_id)
+            raw_text = (
+                f"[Verse]\n"
+                f"({params.get('theme', 'Untitled')})\n\n"
+                f"[Chorus]\n"
+                f"(Generated lyrics)\n"
+            )
+
+        logger.info("Smart lyrics generated (%d chars) for job %s", len(raw_text), prompt_id)
+        return raw_text
+
+    async def _extract_youtube_title(self, url: str) -> str:
+        """Extract YouTube video title without downloading."""
+        try:
+            import yt_dlp
+            ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                return info.get("title", "") if info else ""
+        except Exception as e:
+            logger.warning("Failed to extract YouTube title: %s", e)
+            return ""
+
+    def _build_smart_lyrics_prompt(
+        self, mode, input_type, theme, existing_lyrics, youtube_title,
+        transformation, genre, languages, lang_override, structure, length_hint
+    ) -> str:
+        """Build a mode-specific prompt for smart lyrics generation."""
+
+        lang_str = ", ".join(languages) if languages else "English"
+        if len(languages) > 1:
+            lang_instruction = (
+                f"Write lyrics mixing {lang_str} naturally. "
+                "Switch between languages organically within lines and between lines. "
+                "Don't force equal ratios — let the emotion and flow dictate which language to use for each line."
+            )
+        else:
+            lang_instruction = f"Write lyrics in {lang_str}."
+
+        if lang_override == "hindi_only":
+            lang_instruction = "Write ALL lyrics in Hindi (Devanagari script). Do NOT use any English words."
+        elif lang_override == "english_only":
+            lang_instruction = "Write ALL lyrics in English only."
+        elif lang_override == "hindi_english_mix":
+            lang_instruction = "Write lyrics mixing Hindi and English naturally. Alternate or blend as fits the song."
+
+        transform_instruction = ""
+        TRANSFORMS = {
+            "parody": "Make it a FUNNY PARODY. Keep the melody feel but write hilarious, unexpected, comedic lyrics. Use wordplay, absurd situations, and humor. Same emotional cadence as a real song but with funny content.",
+            "bhajan": "Write as a DEVOTIONAL BHAJAN (Hindi prayer song). Use traditional devotional imagery, spiritual themes, references to the divine. Include Hindi words like 'prabhu', 'bhakti', 'jai', 'hari'. Keep the tone reverent and uplifting.",
+            "love": "Write as a ROMANTIC LOVE SONG. Focus on emotions, longing, connection, intimacy. Use poetic metaphors and heartfelt expressions.",
+            "heartbreak": "Write about HEARTBREAK and separation. Express pain, nostalgia, lost love. Bittersweet tone.",
+            "motivational": "Write MOTIVATIONAL, empowering lyrics. Theme of overcoming obstacles, rising above, inner strength.",
+            "party": "Write high-energy PARTY lyrics. Fun, carefree, celebratory vibe. Make people want to dance.",
+            "sad": "Write a SAD, melancholic song. Express sorrow, loss, loneliness. Emotional and touching.",
+            "devotional_english": "Write a DEVOTIONAL song in English. Spiritual themes, prayer-like structure, sacred imagery.",
+        }
+        if transformation:
+            transform_instruction = TRANSFORMS.get(transformation, f"Transform into {transformation} style.")
+
+        input_framing = ""
+        if input_type == "youtube":
+            ref = f'inspired by the song "{youtube_title}"' if youtube_title else "inspired by a YouTube song"
+            input_framing = f"Generate new lyrics {ref}."
+        elif input_type == "lyrics":
+            input_framing = (
+                f"Transform the following existing lyrics:\n"
+                f"---\n{existing_lyrics}\n---\n"
+                f"Adapt them to the new style while preserving the core meaning and emotional arc."
+            )
+        else:
+            input_framing = f"Write lyrics about: {theme}"
+
+        task = "Transform the existing lyrics to the new style." if mode == "adapt_existing" else "Generate brand new lyrics."
+
+        prompt_text = (
+            f"<bos><start_of_turn>user\n"
+            f"You are a world-class songwriter. Follow ALL instructions below precisely.\n\n"
+            f"TASK: {task}\n\n"
+            f"INPUT: {input_framing}\n\n"
+            f"GENRE: {genre}\n"
+            f"STRUCTURE: {structure}\n"
+            f"LENGTH: {length_hint}\n"
+        )
+        if transform_instruction:
+            prompt_text += f"\n{transform_instruction}\n\n"
+
+        prompt_text += (
+            f"\nLANGUAGE RULES:\n"
+            f"{lang_instruction}\n\n"
+            f"OUTPUT FORMAT:\n"
+            f"Return ONLY the complete lyrics with section tags ([Verse 1], [Chorus], [Verse 2], [Bridge], [Outro] etc.).\n"
+            f"NO explanations, NO meta-commentary, NO translations, NO notes.\n"
+            f"Just the raw lyrics, ready to sing.\n"
+            f"<end_of_turn>\n<start_of_turn>model\n"
+        )
+
+        return prompt_text
+
     async def run_enhance_text(self, params: dict) -> str:
         """Enhance and expand user's prompt text using Gemma via ComfyUI.
 
@@ -760,6 +932,7 @@ class PipelineRunner:
             inject_params["keyscale"] = params["keyscale"]
         inject_params["seed"] = params.get("seed", random.randint(0, 2**32 - 1))
 
+        workflow = self.editor.get_workflow(params.get("workflow", "ace_audio_cover"))
         self.editor.inject_ace_cover_params(workflow, inject_params)
         prompt_id = await self.comfy.enqueue_workflow(workflow)
         logger.info("Enqueued audio cover job: prompt_id=%s", prompt_id)

@@ -5,19 +5,6 @@ import useWorkflowStore from '../../store/workflowStore';
 
 const SECTIONS = [
   {
-    title: 'BUNDLED NODES',
-    nodes: [
-      { type: 'MusicGeneratorNode_bundle', label: 'Music Generator', icon: '🎵', color: '#b026ff' },
-      { type: 'PromptCreatorNode_bundle', label: 'Prompt Creator', icon: '✨', color: '#f59e0b' },
-      { type: 'T2VGeneratorNode_bundle', label: 'T2V Generator', icon: '🎬', color: '#6366f1' },
-      { type: 'I2VGeneratorNode_bundle', label: 'I2V Generator', icon: '🖼️', color: '#4f46e5' },
-      { type: 'LyricsGeneratorNode_bundle', label: 'Lyrics Generator', icon: '✍️', color: '#a855f7' },
-      { type: 'TTSGeneratorNode_bundle', label: 'TTS Generator', icon: '🗣️', color: '#06b6d4' },
-      { type: 'CoverGeneratorNode_bundle', label: 'Cover Generator', icon: '🎤', color: '#ec4899' },
-      { type: 'LLMTextGenNode_bundle', label: 'Audio Analyzer', icon: '🔍', color: '#10b981' },
-    ],
-  },
-  {
     title: 'INPUTS',
     nodes: [
       { type: 'ThemeNode', label: 'Theme', icon: '🎭', color: '#ff3bd4' },
@@ -40,11 +27,15 @@ const SECTIONS = [
     title: 'PROCESSING',
     nodes: [
       { type: 'LyricsGeneratorNode', label: 'Lyrics Generator', icon: '✍️', color: '#a855f7' },
+      { type: 'SmartLyricsNode', label: 'Smart Lyrics Studio', icon: '⚡', color: '#ff3bd4' },
       { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '🎵', color: '#b026ff' },
       { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '🎤', color: '#ec4899' },
       { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '🗣️', color: '#06b6d4' },
       { type: 'LLMTextGenNode', label: 'Audio Analyzer', icon: '🔍', color: '#10b981' },
       { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '✨', color: '#f59e0b' },
+      { type: 'BRollPromptCreatorNode', label: 'B-Roll Prompt Creator', icon: '✨', color: '#f472b6' },
+      { type: 'BRollVideoCreatorNode', label: 'B-Roll Video Creator', icon: '🎬', color: '#f472b6' },
+      { type: 'BRollFocusNode', label: 'B-Roll Focus', icon: '🔍', color: '#f472b6' },
       { type: 'T2VGeneratorNode', label: 'T2V Generator', icon: '🎬', color: '#6366f1' },
       { type: 'I2VGeneratorNode', label: 'I2V Generator', icon: '🖼️', color: '#4f46e5' },
       { type: 'VideoWorkflowSettingsNode', label: 'Video Workflow Settings', icon: '⚙️', color: '#312e81' },
@@ -270,17 +261,28 @@ export default function NodeSidebar() {
 
   const filteredSections = SECTIONS.map((section) => {
     const matched = section.nodes.filter(
-      (n) =>
-        n.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.type.toLowerCase().includes(searchQuery.toLowerCase())
+      (n) => {
+        const sq = searchQuery.toLowerCase();
+        const lbl = n.label.toLowerCase();
+        const typ = n.type.toLowerCase();
+        return lbl.startsWith(sq) || 
+               lbl.split(/[\s-]+/).some(word => word.startsWith(sq)) ||
+               typ.startsWith(sq) ||
+               typ.split(/[\s-]+/).some(word => word.startsWith(sq));
+      }
     );
     return { ...section, nodes: matched };
   }).filter((section) => section.nodes.length > 0);
 
   const filteredTemplates = WORKFLOW_TEMPLATES.filter(
-    (tpl) =>
-      tpl.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tpl.desc.toLowerCase().includes(searchQuery.toLowerCase())
+    (tpl) => {
+      const sq = searchQuery.toLowerCase();
+      const name = tpl.name.toLowerCase();
+      const desc = tpl.desc.toLowerCase();
+      return name.startsWith(sq) || 
+             name.split(/[\s-]+/).some(word => word.startsWith(sq)) ||
+             desc.includes(sq); // keep includes for description since it's a long sentence
+    }
   );
 
   return (

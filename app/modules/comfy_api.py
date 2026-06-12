@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional
 
 import aiohttp
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +31,13 @@ class ComfyUIClient:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    def is_available(self) -> bool:
+    async def is_available(self) -> bool:
         """Check if ComfyUI is reachable by querying /system_stats."""
         try:
-            resp = requests.get(f"{self.base_url}/system_stats", timeout=5)
-            return resp.status_code == 200
-        except requests.RequestException:
+            session = await self._get_session()
+            async with session.get(f"{self.base_url}/system_stats", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                return resp.status == 200
+        except (aiohttp.ClientError, asyncio.TimeoutError):
             return False
 
     async def get_queue(self) -> dict:

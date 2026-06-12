@@ -12,8 +12,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import useWorkflowStore from '../../store/workflowStore';
 
-import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode, VisualStylesNode, YouTubeAudioNode } from '../nodes/inputNodes';
-import { LyricsGeneratorNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, T2VGeneratorNode, I2VGeneratorNode, VideoWorkflowSettingsNode, LTXLoRASettingsNode, ZImageLoRASettingsNode, VideoAdvancedSettingsNode, ImageGeneratorNode, VideoAudioCombinerNode, VideoUpscalerNode } from '../nodes/processingNodes';
+import { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode, VisualStylesNode, YouTubeAudioNode, BRollFocusNode } from '../nodes/inputNodes';
+import { LyricsGeneratorNode, SmartLyricsNode, MusicGeneratorNode, CoverGeneratorNode, TTSGeneratorNode, LLMTextGenNode, PromptCreatorNode, BRollPromptCreatorNode, BRollVideoCreatorNode, T2VGeneratorNode, I2VGeneratorNode, VideoWorkflowSettingsNode, LTXLoRASettingsNode, ZImageLoRASettingsNode, VideoAdvancedSettingsNode, ImageGeneratorNode, VideoAudioCombinerNode, VideoUpscalerNode } from '../nodes/processingNodes';
 import { AudioPlayerNode, VideoPlayerNode, ImagePreviewNode, TextPreviewNode, DebugJsonNode } from '../nodes/outputNodes';
 
 function DeleteButtonEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd }) {
@@ -65,11 +65,13 @@ const nodeTypes = {
   SubjectLocationsNode,
   GutsSettingsNode,
   LyricsGeneratorNode,
+  SmartLyricsNode,
   MusicGeneratorNode,
   CoverGeneratorNode,
   TTSGeneratorNode,
   LLMTextGenNode,
   PromptCreatorNode,
+  BRollPromptCreatorNode,
   T2VGeneratorNode,
   I2VGeneratorNode,
   VideoWorkflowSettingsNode,
@@ -86,6 +88,8 @@ const nodeTypes = {
   DebugJsonNode,
   VisualStylesNode,
   YouTubeAudioNode,
+  BRollFocusNode,
+  BRollVideoCreatorNode,
 };
 
 const NODE_LABELS = {
@@ -95,15 +99,13 @@ const NODE_LABELS = {
   StoryConceptNode: 'Story Concept Input', StyleThemeNode: 'Style & Theme Input',
   SubjectLocationsNode: 'Subject & Locations Input',
   GutsSettingsNode: 'Guts Settings',
-  LyricsGeneratorNode: 'Lyrics Generator', MusicGeneratorNode: 'Music Generator',
+  LyricsGeneratorNode: 'Lyrics Generator', SmartLyricsNode: 'Smart Lyrics Studio', MusicGeneratorNode: 'Music Generator',
   CoverGeneratorNode: 'Cover Generator',   TTSGeneratorNode: 'TTS Voiceover',
-  LLMTextGenNode: 'Audio Analyzer',
-  PromptCreatorNode: 'Prompt Creator',
-  T2VGeneratorNode: 'T2V Generator',
-  I2VGeneratorNode: 'I2V Generator',
+  LLMTextGenNode: 'Audio Analyzer',  PromptCreatorNode: 'Prompt Creator', BRollPromptCreatorNode: 'B-Roll Prompt Creator',
+  BRollVideoCreatorNode: 'B-Roll Video Creator', BRollFocusNode: 'B-Roll Focus',
+  T2VGeneratorNode: 'Text-to-Video Generator', I2VGeneratorNode: 'Image-to-Video Generator',
   VideoWorkflowSettingsNode: 'Video Workflow Settings',
-  LTXLoRASettingsNode: 'LTX LoRA Settings',
-  ZImageLoRASettingsNode: 'Z-Image LoRA Settings',
+  LTXLoRASettingsNode: 'LTX LoRA Settings', ZImageLoRASettingsNode: 'Z-Image LoRA Settings',
   VideoAdvancedSettingsNode: 'Video Advanced Settings',
   ImageGeneratorNode: 'Image Generator',
   VideoAudioCombinerNode: 'Video & Audio Combiner',
@@ -132,11 +134,15 @@ const HANDLE_KEY = {
   YouTubeAudioNode: { 'output-0': 'audio', 'output-1': 'file' },
   SubjectLocationsNode: { 'input-0': 'context', 'output-0': 'subject_scenes' },
   LyricsGeneratorNode: { 'input-0': 'theme', 'input-1': 'genre', 'input-2': 'songSettings', 'output-0': 'lyrics' },
+  SmartLyricsNode: { 'input-0': 'theme', 'input-1': 'lyrics', 'output-0': 'lyrics' },
   MusicGeneratorNode: { 'input-0': 'params', 'input-1': 'instruments', 'input-2': 'settings', 'output-0': 'audio', 'output-1': 'debug' },
   CoverGeneratorNode: { 'input-0': 'audio', 'input-1': 'genre', 'input-2': 'bpm', 'output-0': 'audio' },
   TTSGeneratorNode: { 'input-0': 'text', 'input-1': 'language', 'input-2': 'voice', 'output-0': 'audio' },
   LLMTextGenNode: { 'input-0': 'audio', 'output-0': 'text' },
   PromptCreatorNode: { 'input-0': 'params', 'input-1': 'story_concept', 'input-2': 'theme_style', 'input-3': 'subject_scenes', 'input-4': 'guts_settings', 'input-5': 'lyrics', 'output-0': 'prompts' },
+  BRollPromptCreatorNode: { 'input-0': 'prompts', 'input-1': 'text', 'output-0': 'prompts' },
+  BRollFocusNode: { 'text': 'text' },
+  BRollVideoCreatorNode: { 'input-0': 'prompts', 'output-0': 'video' },
   T2VGeneratorNode: { 'input-0': 'prompts', 'input-1': 'settings', 'input-2': 'loras', 'input-3': 'advanced', 'output-0': 'video', 'output-1': 'combiner' },
   I2VGeneratorNode: { 'input-0': 'prompts', 'input-1': 'image', 'input-2': 'settings', 'input-3': 'loras', 'input-4': 'z-loras', 'input-5': 'advanced', 'output-0': 'video', 'output-1': 'image', 'output-2': 'combiner' },
   VideoWorkflowSettingsNode: { 'output-0': 'settings' },
@@ -144,7 +150,7 @@ const HANDLE_KEY = {
   ZImageLoRASettingsNode: { 'output-0': 'z-loras' },
   VideoAdvancedSettingsNode: { 'output-0': 'advanced' },
   VideoAudioCombinerNode: { 'input-0': 'video', 'input-1': 'audio', 'output-0': 'video' },
-  VideoUpscalerNode: { 'input-0': 'video', 'output-0': 'video' },
+  VideoUpscalerNode: { 'video': 'video' },
   ImageGeneratorNode: { 'input-0': 'prompts', 'input-1': 'params', 'output-0': 'image' },
   AudioPlayerNode: { 'input-0': 'audio' },
   VideoPlayerNode: { 'input-0': 'video' },
@@ -160,19 +166,17 @@ const SUGGESTIONS = {
     { type: 'CoverGeneratorNode', handle: 'input-1', label: 'Cover Generator' },
   ],
   language: [
-    { type: 'LyricsGeneratorNode', handle: 'input-3', label: 'Lyrics Generator' },
     { type: 'TTSGeneratorNode', handle: 'input-1', label: 'TTS Voiceover' },
   ],
   theme: [
     { type: 'LyricsGeneratorNode', handle: 'input-0', label: 'Lyrics Generator' },
+    { type: 'SmartLyricsNode', handle: 'input-0', label: 'Smart Lyrics Studio' },
     { type: 'PromptCreatorNode', handle: 'input-0', label: 'Prompt Creator' },
   ],
   bpm: [
     { type: 'CoverGeneratorNode', handle: 'input-2', label: 'Cover Generator' },
   ],
-  duration: [
-    { type: 'LyricsGeneratorNode', handle: 'input-2', label: 'Lyrics Generator' },
-  ],
+  duration: [],
   songSettings: [
     { type: 'MusicGeneratorNode', handle: 'input-2', label: 'Music Generator' },
     { type: 'LyricsGeneratorNode', handle: 'input-2', label: 'Lyrics Generator' },
@@ -194,15 +198,18 @@ const SUGGESTIONS = {
   file: [],
   lyrics: [
     { type: 'MusicGeneratorNode', handle: 'input-0', label: 'Music Generator' },
+    { type: 'SmartLyricsNode', handle: 'input-1', label: 'Smart Lyrics Studio' },
     { type: 'PromptCreatorNode', handle: 'input-5', label: 'Prompt Creator' },
     { type: 'StoryConceptNode', handle: 'input-0', label: 'Story Concept (Context)' },
   ],
   text: [
     { type: 'TTSGeneratorNode', handle: 'input-0', label: 'TTS Voiceover' },
-    { type: 'MusicGeneratorNode', handle: 'input-1', label: 'Music Generator' },
     { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
+    { type: 'BRollPromptCreatorNode', handle: 'input-1', label: 'B-Roll Prompt Creator' },
   ],
   prompts: [
+    { type: 'BRollPromptCreatorNode', handle: 'input-0', label: 'B-Roll Prompt Creator' },
+    { type: 'BRollVideoCreatorNode', handle: 'input-0', label: 'B-Roll Video Creator' },
     { type: 'T2VGeneratorNode', handle: 'input-0', label: 'T2V Generator' },
     { type: 'I2VGeneratorNode', handle: 'input-0', label: 'I2V Generator' },
     { type: 'ImageGeneratorNode', handle: 'input-0', label: 'Image Generator' },
@@ -210,7 +217,7 @@ const SUGGESTIONS = {
   video: [
     { type: 'VideoPlayerNode', handle: 'input-0', label: 'Video Player' },
     { type: 'VideoAudioCombinerNode', handle: 'input-0', label: 'Video & Audio Combiner' },
-    { type: 'VideoUpscalerNode', handle: 'input-0', label: 'Video Upscaler' },
+    { type: 'VideoUpscalerNode', handle: 'video', label: 'Video Upscaler' },
   ],
   image: [
     { type: 'ImagePreviewNode', handle: 'input-0', label: 'Image Preview' },
@@ -233,7 +240,7 @@ const SUGGESTIONS = {
   ],
   combiner: [
     { type: 'VideoAudioCombinerNode', handle: 'input-0', label: 'Video & Audio Combiner' },
-    { type: 'VideoUpscalerNode', handle: 'input-0', label: 'Video Upscaler' },
+    { type: 'VideoUpscalerNode', handle: 'video', label: 'Video Upscaler' },
   ],
   'text/lyrics': [
     { type: 'TextPreviewNode', handle: 'input-0', label: 'Text Preview' },
@@ -253,6 +260,7 @@ const SUGGESTIONS = {
 
 // Input dataKey → compatible source suggestions (reverse)
 const INPUT_SUGGESTIONS = {
+
   theme: [
     { type: 'ThemeNode', handle: 'output-0', label: 'Theme' },
     { type: 'LyricsGeneratorNode', handle: 'output-0', label: 'Lyrics Generator' },
@@ -279,8 +287,10 @@ const INPUT_SUGGESTIONS = {
   lyrics: [
     { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
     { type: 'LyricsGeneratorNode', handle: 'output-0', label: 'Lyrics Generator' },
+    { type: 'SmartLyricsNode', handle: 'output-0', label: 'Smart Lyrics Studio' },
   ],
   text: [
+    { type: 'BRollFocusNode', handle: 'text', label: 'B-Roll Focus' },
     { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
     { type: 'LLMTextGenNode', handle: 'output-0', label: 'Audio Analyzer' },
   ],
@@ -289,11 +299,7 @@ const INPUT_SUGGESTIONS = {
   ],
   params: [
     { type: 'GutsSettingsNode', handle: 'output-0', label: 'Guts Settings' },
-    { type: 'LyricsGeneratorNode', handle: 'output-0', label: 'Lyrics Generator' },
-    { type: 'LyricsInputNode', handle: 'output-0', label: 'Lyrics Input' },
-    { type: 'ThemeNode', handle: 'output-0', label: 'Theme' },
-    { type: 'MusicGeneratorNode', handle: 'output-0', label: 'Music Generator' },
-    { type: 'CoverGeneratorNode', handle: 'output-0', label: 'Cover Generator' },
+    { type: 'SongSettingsNode', handle: 'output-0', label: 'Song Settings' },
   ],
   settings: [
     { type: 'SongSettingsNode', handle: 'output-0', label: 'Song Settings' },
@@ -313,6 +319,7 @@ const INPUT_SUGGESTIONS = {
   ],
   prompts: [
     { type: 'PromptCreatorNode', handle: 'output-0', label: 'Prompt Creator' },
+    { type: 'BRollPromptCreatorNode', handle: 'output-0', label: 'B-Roll Prompt Creator' },
   ],
   video: [
     { type: 'T2VGeneratorNode', handle: 'output-0', label: 'T2V Generator' },
@@ -844,7 +851,11 @@ export default function NodeCanvas() {
     if (!quickSearchQuery) return ALL_SEARCHABLE_NODES;
     const q = quickSearchQuery.toLowerCase();
     return ALL_SEARCHABLE_NODES.filter(
-      n => n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q)
+      n => {
+        const lbl = n.label.toLowerCase();
+        const typ = n.type.toLowerCase();
+        return lbl.startsWith(q) || lbl.split(/[\s-]+/).some(word => word.startsWith(q)) || typ.startsWith(q) || typ.split(/[\s-]+/).some(word => word.startsWith(q));
+      }
     );
   }, [quickSearchQuery, ALL_SEARCHABLE_NODES]);
 
@@ -1322,7 +1333,7 @@ export default function NodeCanvas() {
           <div style={{ maxHeight: 260, overflowY: 'auto' }}>
             {(searchQuery
               ? connectMenu.items.filter((item) =>
-                  item.label.toLowerCase().includes(searchQuery.toLowerCase())
+                  item.label.toLowerCase().startsWith(searchQuery.toLowerCase()) || item.label.toLowerCase().split(/[\s-]+/).some(word => word.startsWith(searchQuery.toLowerCase()))
                 )
               : connectMenu.items
             ).length === 0 ? (
@@ -1332,7 +1343,7 @@ export default function NodeCanvas() {
             ) : (
               (searchQuery
                 ? connectMenu.items.filter((item) =>
-                    item.label.toLowerCase().includes(searchQuery.toLowerCase())
+                    item.label.toLowerCase().startsWith(searchQuery.toLowerCase()) || item.label.toLowerCase().split(/[\s-]+/).some(word => word.startsWith(searchQuery.toLowerCase()))
                   )
                 : connectMenu.items
               ).map((item, i) => (
@@ -1615,16 +1626,21 @@ const QUICK_ADD_SECTIONS = [
   {
     title: 'PROCESSING',
     nodes: [
-      { type: 'LyricsGeneratorNode', label: 'Lyrics Generator', icon: '\u270D\uFE0F', color: '#a855f7' },
-      { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '\uD83C\uDFB5', color: '#b026ff' },
-      { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '\uD83C\uDFA4', color: '#ec4899' },
-      { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '\uD83D\uDDE3\uFE0F', color: '#06b6d4' },
-      { type: 'LLMTextGenNode', label: 'Audio Analyzer', icon: '\uD83D\uDD0D', color: '#10b981' },
-      { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '\u2728', color: '#f59e0b' },
-      { type: 'T2VGeneratorNode', label: 'T2V Generator', icon: '\uD83C\uDFAC', color: '#6366f1' },
-      { type: 'I2VGeneratorNode', label: 'I2V Generator', icon: '\uD83D\uDDBC\uFE0F', color: '#4f46e5' },
+      { type: 'LyricsGeneratorNode', label: 'Lyrics Generator', icon: '✍️', color: '#a855f7' },
+      { type: 'SmartLyricsNode', label: 'Smart Lyrics Studio', icon: '⚡', color: '#ff3bd4' },
+      { type: 'MusicGeneratorNode', label: 'Music Generator', icon: '🎵', color: '#b026ff' },
+      { type: 'CoverGeneratorNode', label: 'Cover Generator', icon: '🎤', color: '#ec4899' },
+      { type: 'TTSGeneratorNode', label: 'TTS Generator', icon: '🗣️', color: '#06b6d4' },
+      { type: 'LLMTextGenNode', label: 'Audio Analyzer', icon: '🔍', color: '#10b981' },
+      { type: 'PromptCreatorNode', label: 'Prompt Creator', icon: '✨', color: '#f59e0b' },
+      { type: 'BRollPromptCreatorNode', label: 'B-Roll Prompt Creator', icon: '✨', color: '#f472b6' },
+      { type: 'BRollVideoCreatorNode', label: 'B-Roll Video Creator', icon: '🎬', color: '#f472b6' },
+      { type: 'BRollFocusNode', label: 'B-Roll Focus', icon: '🔍', color: '#f472b6' },
+      { type: 'T2VGeneratorNode', label: 'T2V Generator', icon: '🎬', color: '#6366f1' },
+      { type: 'I2VGeneratorNode', label: 'I2V Generator', icon: '🖼️', color: '#4f46e5' },
       { type: 'VideoWorkflowSettingsNode', label: 'Video Workflow Settings', icon: '⚙️', color: '#312e81' },
-      { type: 'VideoLoRASettingsNode', label: 'Video LoRA Settings', icon: '🧬', color: '#4c1d95' },
+      { type: 'LTXLoRASettingsNode', label: 'LTX LoRA Settings', icon: '🧬', color: '#4c1d95' },
+      { type: 'ZImageLoRASettingsNode', label: 'Z-Image LoRA Settings', icon: '🧬', color: '#4c1d95' },
       { type: 'VideoAdvancedSettingsNode', label: 'Video Advanced Settings', icon: '🛠️', color: '#1e1b4b' },
       { type: 'VideoAudioCombinerNode', label: 'Video & Audio Combiner', icon: '🎬', color: '#10b981' },
       { type: 'VideoUpscalerNode', label: 'Video Upscaler', icon: '🚀', color: '#8b5cf6' },
@@ -1638,6 +1654,7 @@ const QUICK_ADD_SECTIONS = [
       { type: 'VideoPlayerNode', label: 'Video Player', icon: '\uD83C\uDFAC', color: '#6366f1' },
       { type: 'ImagePreviewNode', label: 'Image Preview', icon: '\uD83D\uDDBC\uFE0F', color: '#14b8a6' },
       { type: 'TextPreviewNode', label: 'Text Preview', icon: '\uD83D\uDCC4', color: '#b9b4d0' },
+      { type: 'DebugJsonNode', label: 'JSON Debugger', icon: '🐞', color: '#e11d48' },
     ],
   },
 ];

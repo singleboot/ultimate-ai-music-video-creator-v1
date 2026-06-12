@@ -3,11 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import BaseNode, { inputBase, labelBase, btnBase, Select } from './BaseNode';
-import { generateLyrics, generateText2Audio, generateAudioCover, generateTTS, generatePrompts, generateVideo, startVideoJob, getVideoJobStatus, generateLLMAudioAnalysis, combineVideoAudio, fetchLoras, resolveUrl, cancelJob } from '../../lib/api';
+import api, { generateLyrics, generateText2Audio, generateAudioCover, generateTTS, generatePrompts, generateVideo, startVideoJob, getVideoJobStatus, generateLLMAudioAnalysis, combineVideoAudio, fetchLoras, resolveUrl, cancelJob, generateSmartLyrics } from '../../lib/api';
 import NodeSpinner from './spinners';
 import useWorkflowStore from '../../store/workflowStore';
-
-const API = 'http://127.0.0.1:8000';
 
 function WorkflowSelector({ category, selectedWorkflow, onSelect }) {
   const [workflows, setWorkflows] = useState([]);
@@ -16,8 +14,7 @@ function WorkflowSelector({ category, selectedWorkflow, onSelect }) {
   useEffect(() => {
     const fetchWorkflows = async () => {
       try {
-        const res = await fetch(`${API}/api/workflows/category/${category}`);
-        const data = await res.json();
+        const data = await api.get(`/api/workflows/category/${category}`).then(r => r.data);
         setWorkflows(data.workflows || []);
         if (!selectedWorkflow && data.default) {
           onSelect(data.default);
@@ -528,12 +525,7 @@ const MusicGeneratorNode = React.memo(function MusicGeneratorNode({ data, id, se
       sampling_shift: d.current.samplingShift ?? 3,
     };
     try {
-      const r = await fetch(`${API}/api/debug/inject/ace_text2music_v2`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ params }),
-      });
-      const data = await r.json();
+      const data = await api.post('/api/debug/inject/ace_text2music_v2', { params }).then(r => r.data);
       useWorkflowStore.getState().updateNodeData(id, { debugJson: JSON.stringify(data, null, 2) });
     } catch (e) {
       useWorkflowStore.getState().updateNodeData(id, { debugJson: 'Debug error: ' + e.message });
@@ -866,9 +858,8 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
         fd.append('top_k', String(d.current.topK ?? 64));
         fd.append('top_p', String(d.current.topP ?? 0.95));
         fd.append('max_length', String(d.current.maxLength ?? 2048));
-        const r = await fetch(`${API}/api/generate`, { method: 'POST', body: fd, headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(900000) });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Request failed'); }
-        res = await r.json();
+        const r = await api.post('/api/generate', fd, { headers: { 'Accept': 'application/json', 'Content-Type': 'multipart/form-data' }, timeout: 900000 });
+        res = r.data;
       } else {
         res = await generateLLMAudioAnalysis({
           audio_path: audioFileName,
@@ -1058,36 +1049,6 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
     }
   };
 
-  const handleSaveTextFiles = async () => {
-    setSaveLoading(true);
-    setSaveMsg('');
-    try {
-      const inputs = getConnectedInputs(id);
-      const lyricsText = inputs.lyrics || d.current.lyrics || '';
-      const themeText = inputs.theme_style || d.current.theme_style || inputs.theme || d.current.theme || '';
-      const storyText = inputs.story_concept || d.current.story_concept || inputs.story || d.current.story || '';
-      const locationsText = inputs.subject_scenes || d.current.subject_scenes || '';
-
-      const r = await fetch(`${API}/api/projects/save-inputs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lyrics: lyricsText,
-          theme_style: themeText,
-          story_concept: storyText,
-          subject_scenes: locationsText,
-        }),
-      });
-      if (!r.ok) throw new Error('Save failed');
-      setSaveMsg('Saved Successfully!');
-    } catch (err) {
-      setSaveMsg('Error: ' + err.message);
-    } finally {
-      setSaveLoading(false);
-      setTimeout(() => setSaveMsg(''), 3000);
-    }
-  };
-
   const handleCancel = () => {
     cancelled.current = true;
     setLoading(false);
@@ -1140,28 +1101,6 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
           </div>
         </div>
 
-        {/* Save Text Files & Prompt Outputs container */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-          <button
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={handleSaveTextFiles}
-            disabled={saveLoading}
-            style={{
-              ...btnBase,
-              flex: 1,
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              fontSize: '9.5px',
-              padding: '6px 4px',
-              boxShadow: '0 0 10px rgba(16,185,129,0.3)',
-            }}
-          >
-            {saveLoading ? 'Saving...' : '💾 Save Text Files'}
-          </button>
-        </div>
-        {saveMsg && (
-          <div style={{ fontSize: 9.5, color: saveMsg.startsWith('Error') ? '#f87171' : '#34d399', textAlign: 'center', fontWeight: 'bold' }}>{saveMsg}</div>
-        )}
-
         <div style={outputContainerBase}>
           {d.current.prompts && (
             <div className="nodrag" style={{ ...outputAreaBase, whiteSpace: 'pre-wrap', maxHeight: node?.height ? 'none' : 150, flex: 1 }}>
@@ -1179,10 +1118,11 @@ const PromptCreatorNode = React.memo(function PromptCreatorNode({ data, id, sele
             const resolvedHref = resolveUrl(url, projectPath);
             const clean = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
             const filename = clean.substring(clean.lastIndexOf('/') + 1);
+            const cacheBusterUrl = `${resolvedHref}${resolvedHref.includes('?') ? '&' : '?'}t=${Date.now()}`;
             return (
               <a
                 key={idx}
-                href={resolvedHref}
+                href={cacheBusterUrl}
                 target="_blank"
                 rel="noreferrer"
                 onPointerDown={(e) => e.stopPropagation()}
@@ -1224,12 +1164,9 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
     if (d.current.videoUrl && (!d.current.outputs || d.current.outputs.length === 0)) {
       const fetchOutputs = async () => {
         try {
-          const res = await fetch(`http://127.0.0.1:8000/api/projects/list-video-outputs?video_url=${encodeURIComponent(d.current.videoUrl)}&project_path=${encodeURIComponent(projectPath || '')}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.outputs && data.outputs.length > 0) {
-              updateNodeData({ outputs: data.outputs });
-            }
+          const data = await api.get('/api/projects/list-video-outputs', { params: { video_url: d.current.videoUrl, project_path: projectPath || '' } }).then(r => r.data);
+          if (data.outputs && data.outputs.length > 0) {
+            updateNodeData({ outputs: data.outputs });
           }
         } catch (e) {
           console.error("Failed to auto-populate outputs list:", e);
@@ -1472,12 +1409,9 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
     if (d.current.videoUrl && (!d.current.outputs || d.current.outputs.length === 0)) {
       const fetchOutputs = async () => {
         try {
-          const res = await fetch(`http://127.0.0.1:8000/api/projects/list-video-outputs?video_url=${encodeURIComponent(d.current.videoUrl)}&project_path=${encodeURIComponent(projectPath || '')}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.outputs && data.outputs.length > 0) {
-              updateNodeData({ outputs: data.outputs });
-            }
+          const data = await api.get('/api/projects/list-video-outputs', { params: { video_url: d.current.videoUrl, project_path: projectPath || '' } }).then(r => r.data);
+          if (data.outputs && data.outputs.length > 0) {
+            updateNodeData({ outputs: data.outputs });
           }
         } catch (e) {
           console.error("Failed to auto-populate outputs list:", e);
@@ -2410,8 +2344,7 @@ function WorkflowGear({ nodeId, currentWf, defaultWf, category = 'text-to-audio'
   React.useEffect(() => {
     const fetchWorkflows = async () => {
       try {
-        const res = await fetch(`${API}/api/workflows/category/${category}`);
-        const data = await res.json();
+        const data = await api.get(`/api/workflows/category/${category}`).then(r => r.data);
         setWorkflows(data.workflows || []);
       } catch (err) {
         console.error('Failed to fetch workflows:', err);
@@ -2725,9 +2658,623 @@ const VideoUpscalerNode = React.memo(function VideoUpscalerNode({ data, id, sele
   );
 });
 
+const brollPromptInputs = [
+  { id: 'input-0', label: 'prompts (from main)', type: 'prompts' },
+  { id: 'input-1', label: 'b_roll_text 📝', type: 'text' },
+];
+const brollPromptOut = [
+  { id: 'output-0', label: 'b-roll prompts', type: 'prompts' },
+];
+
+const BRollPromptCreatorNode = React.memo(function BRollPromptCreatorNode({ data, id, selected }) {
+  const [loading, setLoading] = useState(false);
+  const [promptContent, setPromptContent] = useState('');
+  const cancelled = useRef(false);
+  const d = useRef(data);
+  d.current = data;
+
+  const node = useWorkflowStore((s) => s.nodes.find((n) => n.id === id));
+
+  useEffect(() => {
+    const fetchPromptsContent = async () => {
+      if (d.current.prompts && typeof d.current.prompts === 'object' && d.current.prompts.outputs && d.current.prompts.outputs.length > 0) {
+        const projectPath = useWorkflowStore.getState().projectPath;
+        const rawUrl = d.current.prompts.outputs[0];
+        const resolvedUrl = resolveUrl(rawUrl, projectPath);
+        try {
+          const cacheBusterUrl = resolvedUrl.includes('?') ? `${resolvedUrl}&_t=${Date.now()}` : `${resolvedUrl}?_t=${Date.now()}`;
+          const res = await fetch(cacheBusterUrl);
+          if (res.ok) {
+            const text = await res.text();
+            setPromptContent(text);
+          }
+        } catch (e) {
+          console.error("Failed to fetch b-roll prompts content:", e, resolvedUrl);
+        }
+      } else if (typeof d.current.prompts === 'string') {
+        setPromptContent(d.current.prompts);
+      } else {
+        setPromptContent('');
+      }
+    };
+    fetchPromptsContent();
+  }, [data.prompts]);
+
+  const handleGenerate = async () => {
+    cancelled.current = false;
+    setLoading(true);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined });
+    try {
+      const inputs = getConnectedInputs(id);
+
+      // B-Roll only needs: b_roll focus text + theme/style + audio (for timing)
+      const brollFocusText = inputs.text || inputs.b_roll_text || d.current.b_roll_focus || d.current.text || '';
+      const themeText = inputs.theme_style || d.current.theme_style || inputs.theme || d.current.theme || '';
+
+      // Auto-discover audio from the canvas
+      const allNodes = useWorkflowStore.getState().nodes;
+      const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
+      const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
+      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || '';
+      const projectPath = useWorkflowStore.getState().projectPath;
+
+      const res = await generatePrompts({
+        workflow: 'b_roll_prompt_creator',
+        lyrics: '',
+        theme_style: themeText,
+        story_concept: '',
+        subject_scenes: brollFocusText,
+        language: 'auto',
+        fps: 24,
+        duration: inputs.duration || d.current.duration || 180,
+        audio_path: activeAudioUrl,
+        project_path: projectPath,
+      });
+      if (cancelled.current) return;
+      useWorkflowStore.getState().updateNodeData(id, { prompts: res.concepts || res.prompts || res, promptId: res.prompt_id || res.job_id || '', isRunning: false, error: undefined });
+    } catch (err) {
+      if (cancelled.current) return;
+      useWorkflowStore.getState().updateNodeData(id, { error: err.message, isRunning: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setLoading(false);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
+  };
+
+  return (
+    <BaseNode title="B-Roll Prompt Creator" color="#10b981" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={brollPromptInputs} outputHandles={brollPromptOut} style={{ width: 260 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, width: '100%' }}>
+
+        {/* Info banner */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 8px', background: 'rgba(16,185,129,0.06)', borderRadius: 6, border: '1px solid rgba(16,185,129,0.2)' }}>
+          <div style={{ fontSize: 9.5, color: '#10b981', textAlign: 'center', fontWeight: 'bold', lineHeight: 1.4 }}>
+            🎬 B-Roll Prompt Generator
+          </div>
+          <div style={{ fontSize: 8.5, color: '#6ee7b7', textAlign: 'center', lineHeight: 1.3, opacity: 0.8 }}>
+            Connect a B-Roll Focus node for cutaway shot ideas. Generates atmospheric, cinematic prompts with varied angles & situations.
+          </div>
+        </div>
+
+        {/* B-Roll Focus override */}
+        <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>B-Roll Focus (override)</div>
+        <textarea
+          className="nodrag"
+          value={d.current.b_roll_focus || ''}
+          onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { b_roll_focus: e.target.value })}
+          placeholder="E.g: city skylines, close-up of instruments, rain on windows..."
+          style={{ ...inputBase, resize: 'none', height: 50, fontSize: 10, userSelect: 'text', WebkitUserSelect: 'text' }}
+        />
+
+        {/* Output area */}
+        <div style={outputContainerBase}>
+          {d.current.prompts && (
+            <div className="nodrag" style={{ ...outputAreaBase, whiteSpace: 'pre-wrap', maxHeight: node?.height ? 'none' : 150, flex: 1 }}>
+              {promptContent
+                ? promptContent
+                : (typeof d.current.prompts === 'string'
+                  ? d.current.prompts
+                  : (d.current.prompts.status === 'completed' ? '✅ B-Roll prompts generated — loading...' : JSON.stringify(d.current.prompts, null, 2))
+                )
+              }
+            </div>
+          )}
+          {d.current.prompts && d.current.prompts.outputs && d.current.prompts.outputs.map((url, idx) => {
+            const projectPath = useWorkflowStore.getState().projectPath;
+            const resolvedHref = resolveUrl(url, projectPath);
+            const clean = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+            const filename = clean.substring(clean.lastIndexOf('/') + 1);
+            const cacheBusterUrl = `${resolvedHref}${resolvedHref.includes('?') ? '&' : '?'}t=${Date.now()}`;
+            return (
+              <a
+                key={idx}
+                href={cacheBusterUrl}
+                target="_blank"
+                rel="noreferrer"
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: 9, color: '#6ee7b7', textDecoration: 'underline', marginTop: 4, display: 'block', wordBreak: 'break-all', fontWeight: 600
+                }}
+              >
+                🎬 View B-Roll Prompts ({filename})
+              </a>
+            );
+          })}
+          {d.current.error && !loading && (
+            <div className="nodrag" style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', userSelect: 'text', WebkitUserSelect: 'text' }}>{d.current.error}</div>
+          )}
+          {loading && <NodeSpinner variant="prompt" />}
+        </div>
+
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#10b981', marginTop: 'auto', padding: '6px 0' }}>
+          {loading ? 'Cancel' : 'Generate B-Roll Prompts'}
+        </button>
+      </div>
+    </BaseNode>
+  );
+});
+
+const BRollVideoCreatorNode = React.memo(function BRollVideoCreatorNode({ data, id, selected }) {
+  const [loading, setLoading] = useState(false);
+  const cancelled = useRef(false);
+  const d = useRef(data);
+  d.current = data;
+
+  const updateNodeData = (patch) => {
+    useWorkflowStore.getState().updateNodeData(id, patch);
+  };
+
+  const projectPath = useWorkflowStore((s) => s.projectPath);
+
+  useEffect(() => {
+    if (d.current.videoUrl && (!d.current.outputs || d.current.outputs.length === 0)) {
+      const fetchOutputs = async () => {
+        try {
+          const data = await api.get('/api/projects/list-video-outputs', { params: { video_url: d.current.videoUrl, project_path: projectPath || '' } }).then(r => r.data);
+          if (data.outputs && data.outputs.length > 0) {
+            updateNodeData({ is_b_roll: true,  outputs: data.outputs });
+          }
+        } catch (e) {
+          console.error("Failed to auto-populate outputs list:", e);
+        }
+      };
+      fetchOutputs();
+    }
+  }, [d.current.videoUrl, projectPath]);
+
+  const handleGenerate = async () => {
+    cancelled.current = false;
+    setLoading(true);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined, statusMsg: 'Starting...' });
+    try {
+      const inputs = getConnectedInputs(id);
+      
+      let conceptsFile = undefined;
+      if (inputs.prompts && typeof inputs.prompts === 'object') {
+        const outputs = inputs.prompts.outputs || [];
+        if (outputs.length > 0) {
+          const url = outputs[0];
+          const cleanUrl = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+          conceptsFile = cleanUrl.includes('/output/') ? cleanUrl.substring(cleanUrl.indexOf('/output/') + 8) : cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
+        }
+      }
+
+      const loraParams = {};
+      for (let i = 1; i <= 20; i++) {
+        const loraKey = `lora_${i}`;
+        const strengthKey = `strength_${i}`;
+        const zLoraKey = `z_image_lora_${i}`;
+        const zStrengthKey = `z_image_strength_${i}`;
+        if (inputs[loraKey] !== undefined || d.current[loraKey] !== undefined) {
+          loraParams[loraKey] = inputs[loraKey] || d.current[loraKey];
+        }
+        if (inputs[strengthKey] !== undefined || d.current[strengthKey] !== undefined) {
+          loraParams[strengthKey] = inputs[strengthKey] ?? d.current[strengthKey];
+        }
+        if (inputs[zLoraKey] !== undefined || d.current[zLoraKey] !== undefined) {
+          loraParams[zLoraKey] = inputs[zLoraKey] || d.current[zLoraKey];
+        }
+        if (inputs[zStrengthKey] !== undefined || d.current[zStrengthKey] !== undefined) {
+          loraParams[zStrengthKey] = inputs[zStrengthKey] ?? d.current[zStrengthKey];
+        }
+      }
+
+      const allNodes = useWorkflowStore.getState().nodes;
+      const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
+      const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
+      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || d.current.audioUrl || '';
+      const projectPath = useWorkflowStore.getState().projectPath;
+
+      const jobParams = {
+        audio_path: activeAudioUrl,
+        project_path: projectPath,
+        prompts: inputs.prompt || (inputs.prompts && typeof inputs.prompts === 'string' ? inputs.prompts : '') || d.current.prompt || '',
+        concepts_file: conceptsFile || inputs.concepts_file || d.current.concepts_file || undefined,
+        use_sage_attention: !!(inputs.use_sage_attention ?? d.current.use_sage_attention),
+        fps: inputs.fps ?? d.current.fps ?? 24,
+        resolution: inputs.resolution || d.current.resolution || '1024x576',
+        width: inputs.width ?? d.current.width ?? 1024,
+        height: inputs.height ?? d.current.height ?? 576,
+        seed: inputs.seed ?? d.current.seed ?? -1,
+        camera_motion: inputs.cameraMotion || d.current.cameraMotion || 'Static',
+        ltx_gguf: inputs.ltx_gguf || d.current.ltx_gguf || 'VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q4_0.gguf',
+        video_vae: inputs.video_vae || d.current.video_vae || 'LTX 2\\LTX23_video_vae_bf16.safetensors',
+        gemma_clip: inputs.gemma_clip || d.current.gemma_clip || 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors',
+        text_projection: inputs.text_projection || d.current.text_projection || 'ltx-2.3_text_projection_bf16.safetensors',
+        latent_upscaler: inputs.latent_upscaler || d.current.latent_upscaler || 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors',
+        audio_vae: inputs.audio_vae || d.current.audio_vae || 'LTX 2\\LTX23_audio_vae_bf16.safetensors',
+        z_image_turbo: inputs.z_image_turbo || d.current.z_image_turbo || 'IMAGE\\Z_image_turbo_bf16.safetensors',
+        z_image_clip: inputs.z_image_clip || d.current.z_image_clip || 'qwen_3_4b.safetensors',
+        z_image_vae: inputs.z_image_vae || d.current.z_image_vae || 'ae.safetensors',
+        supergemma_llm: inputs.supergemma_llm || d.current.supergemma_llm || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf',
+        use_custom_loras: inputs.use_custom_loras || d.current.use_custom_loras || 'OFF',
+        lora_trigger_word: !!(inputs.lora_trigger_word ?? d.current.lora_trigger_word),
+        lora_trigger_text: inputs.lora_trigger_text || d.current.lora_trigger_text || '',
+        lora_count: inputs.lora_count ?? d.current.lora_count ?? 1,
+        ltx_two_pass_mode: inputs.ltx_two_pass_mode || d.current.ltx_two_pass_mode || 'ON',
+        use_z_image_loras: inputs.use_z_image_loras || d.current.use_z_image_loras || 'OFF',
+        z_lora_trigger_word: !!(inputs.z_lora_trigger_word ?? d.current.z_lora_trigger_word),
+        z_lora_trigger_text: inputs.z_lora_trigger_text || d.current.z_lora_trigger_text || '',
+        z_image_lora_count: inputs.z_image_lora_count ?? d.current.z_image_lora_count ?? 1,
+        ...loraParams,
+        advanced_enabled: !!(inputs.advanced_enabled ?? d.current.advanced_enabled),
+        settings_count: inputs.settings_count ?? d.current.settings_count ?? 2,
+        selection_mode_all: inputs.selection_mode_all || d.current.selection_mode_all || 'Index-based',
+        camera_motion_list: inputs.camera_motion_list ?? d.current.camera_motion_list ?? 'Slow push-in\nTrack right\nTrack left\nDolly backward\nHandheld follow\nOver-the-shoulder push-in\nSlow pan right\nSlow pan left',
+        character_motion_list: inputs.character_motion_list ?? d.current.character_motion_list ?? 'Walks toward camera with confident swagger\nStrides across the frame\nTurns head to look directly at lens',
+        camera_motion_preset: inputs.camera_motion_preset || d.current.camera_motion_preset || 'Camera Motion',
+        character_motion_preset: inputs.character_motion_preset || d.current.character_motion_preset || 'Character Movement/Motion',
+        camera_motion_sel_mode: inputs.camera_motion_sel_mode || d.current.camera_motion_sel_mode || 'index',
+        character_motion_sel_mode: inputs.character_motion_sel_mode || d.current.character_motion_sel_mode || 'index',
+        camera_motion_items: inputs.camera_motion_items ?? d.current.camera_motion_items ?? 1,
+        character_motion_items: inputs.character_motion_items ?? d.current.character_motion_items ?? 1,
+        camera_motion_template: inputs.camera_motion_template || d.current.camera_motion_template || 'start with {item1} then follow with {item2}',
+        character_motion_template: inputs.character_motion_template || d.current.character_motion_template || 'start with {item1} then follow with {item2}',
+      };
+
+      // Start the async job — returns immediately with a job_id
+      const startRes = await startVideoJob('t2v', jobParams);
+      if (cancelled.current) return;
+      const jobId = startRes.job_id;
+      useWorkflowStore.getState().updateNodeData(id, { statusMsg: 'Job queued — generating chunks...' });
+
+      // Poll every 5 seconds until done
+      while (!cancelled.current) {
+        await new Promise((r) => setTimeout(r, 5000));
+        if (cancelled.current) return;
+        
+        let status;
+        try {
+          status = await getVideoJobStatus(jobId);
+        } catch (pollErr) {
+          console.warn("Polling error (ignored):", pollErr);
+          continue;
+        }
+
+        useWorkflowStore.getState().updateNodeData(id, { statusMsg: status.message || status.status });
+        if (status.status === 'completed') {
+          useWorkflowStore.getState().updateNodeData(id, {
+            videoUrl: status.video_url || status.url || '',
+            outputs: status.outputs || [],
+            promptId: status.prompt_id || jobId,
+            isRunning: false,
+            error: undefined,
+            statusMsg: undefined,
+          });
+          break;
+        } else if (status.status === 'failed') {
+          throw new Error(status.error || status.message || 'Video generation failed');
+        }
+      }
+    } catch (err) {
+      if (cancelled.current) return;
+      useWorkflowStore.getState().updateNodeData(id, { error: err.message, isRunning: false, statusMsg: undefined });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setLoading(false);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
+  };
+
+  return (
+    <BaseNode title="B-Roll Video Generator" color="#6366f1" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={t2vInputs} outputHandles={t2vOut}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, width: '100%', minWidth: 200 }} className="nodrag">
+        <div style={labelBase}>Prompt Override (Optional)</div>
+        <textarea value={d.current.prompt || ''} onChange={(e) => updateNodeData({ is_b_roll: true,  prompt: e.target.value })} placeholder="Describe the video (uses prompts from upstream by default)..." style={{ ...inputBase, resize: 'none', height: 75, userSelect: 'text', WebkitUserSelect: 'text' }} />
+        
+        <div style={labelBase}>Resolution Override</div>
+        <Select
+          value={d.current.resolution || '1024x576'}
+          onChange={(e) => updateNodeData({ is_b_roll: true,  resolution: e.target.value })}
+          options={['512x512', '768x768', '1024x576', '1280x720', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
+          <input
+            type="checkbox"
+            id={`use_sage_attention_t2v_${id}`}
+            checked={!!d.current.use_sage_attention}
+            onChange={(e) => updateNodeData({ is_b_roll: true,  use_sage_attention: e.target.checked })}
+            style={{ cursor: 'pointer' }}
+          />
+          <label htmlFor={`use_sage_attention_t2v_${id}`} style={{ ...labelBase, cursor: 'pointer', margin: 0 }}>Use SageAttention (Faster)</label>
+        </div>
+
+        <div style={outputContainerBase}>
+          {d.current.outputs && d.current.outputs.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', marginTop: 8 }}>
+              <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>Generated Scene Clips:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {d.current.outputs.map((url, idx) => {
+                  const filename = url.substring(url.lastIndexOf('/') + 1);
+                  const isActive = d.current.videoUrl === url;
+                  return (
+                    <button
+                      key={idx}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => updateNodeData({ is_b_roll: true,  videoUrl: url })}
+                      style={{
+                        textAlign: 'left',
+                        background: isActive ? 'rgba(99,102,241,0.3)' : 'transparent',
+                        border: 'none',
+                        color: isActive ? '#818cf8' : '#cbd5e1',
+                        fontSize: 9,
+                        padding: '2px 4px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        width: '100%',
+                        fontWeight: isActive ? 'bold' : 'normal',
+                      }}
+                      title={filename}
+                    >
+                      Clip {idx + 1}: {filename}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {d.current.error && !loading && (
+            <div style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{d.current.error}</div>
+          )}
+          {loading && <NodeSpinner variant="video" />}
+          {loading && d.current.statusMsg && (
+            <div style={{ fontSize: 9, color: '#a5b4fc', padding: '2px 4px', textAlign: 'center', fontStyle: 'italic' }}>{d.current.statusMsg}</div>
+          )}
+        </div>
+
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={loading ? handleCancel : handleGenerate} style={{ ...btnBase, background: loading ? '#ef4444' : '#6366f1', padding: '6px 0' }}>
+          {loading ? 'Cancel' : 'Generate Video'}
+        </button>
+      </div>
+    </BaseNode>
+  );
+});
+
+const TRANSFORMATIONS = [
+  { id: '', label: 'None' },
+  { id: 'parody', label: 'Parody' },
+  { id: 'bhajan', label: 'Bhajan' },
+  { id: 'love', label: 'Love' },
+  { id: 'heartbreak', label: 'Heartbreak' },
+  { id: 'motivational', label: 'Motivational' },
+  { id: 'party', label: 'Party' },
+  { id: 'sad', label: 'Sad' },
+  { id: 'devotional_english', label: 'Devotional' },
+];
+
+const LANG_CODES = ['en', 'hi', 'bn', 'ta', 'te', 'pa', 'ur', 'kn', 'ml'];
+
+const smartLyricsInputs = [
+  { id: 'input-0', label: 'theme', icon: '🎭' },
+  { id: 'input-1', label: 'lyrics', icon: '📝' },
+];
+const smartLyricsOut = [{ id: 'output-0', label: 'lyrics', icon: '📝' }];
+
+const SmartLyricsNode = React.memo(function SmartLyricsNode({ data, id, selected }) {
+  const [loading, setLoading] = useState(false);
+  const [clicked, setClicked] = useState(false);
+  const cancelled = useRef(false);
+  const d = useRef(data);
+  d.current = data;
+
+  const handleGenerate = async () => {
+    cancelled.current = false;
+    setClicked(true);
+    setLoading(true);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: true, error: undefined, debug: 'calling Gemma4...' });
+    try {
+      const inputs = getConnectedInputs(id);
+      const res = await generateSmartLyrics({
+        mode: d.current.mode || 'generate_new',
+        input_type: d.current.inputType || 'theme',
+        theme: inputs.theme || d.current.theme || '',
+        existing_lyrics: inputs.lyrics || d.current.existingLyrics || '',
+        youtube_url: d.current.youtubeUrl || '',
+        transformation: d.current.transformation || '',
+        genre: inputs.genre || d.current.genre || 'pop',
+        languages: d.current.languages || ['en'],
+        language_override: d.current.langOverride || '',
+        structure: d.current.structure || 'Verse-Chorus',
+        duration: inputs.duration || d.current.duration || 30,
+        seed: Math.floor(Math.random() * 999999),
+      });
+      if (cancelled.current) return;
+      useWorkflowStore.getState().updateNodeData(id, { lyrics: res.lyrics || '', isRunning: false, error: undefined, debug: undefined });
+    } catch (err) {
+      if (cancelled.current) return;
+      useWorkflowStore.getState().updateNodeData(id, { error: 'Error: ' + err.message, isRunning: false, debug: 'failed: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setLoading(false);
+    useWorkflowStore.getState().updateNodeData(id, { isRunning: false });
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
+  };
+
+  const toggleLang = (code) => {
+    const current = d.current.languages || ['en'];
+    const next = current.includes(code) ? current.filter((l) => l !== code) : [...current, code];
+    useWorkflowStore.getState().updateNodeData(id, { languages: next });
+  };
+
+  return (
+    <BaseNode title="Smart Lyrics Studio" color="#ff3bd4" isRunning={loading} selected={selected} nodeId={id} data={data} inputHandles={smartLyricsInputs} outputHandles={smartLyricsOut} style={{ width: 320 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        {/* Mode */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[
+            { id: 'generate_new', label: 'Generate New' },
+            { id: 'adapt_existing', label: 'Adapt Existing' },
+          ].map(({ id: mId, label }) => (
+            <button key={mId} onClick={() => useWorkflowStore.getState().updateNodeData(id, { mode: mId })} style={{ flex: 1, padding: '3px 4px', borderRadius: 4, border: 'none', background: (d.current.mode || 'generate_new') === mId ? '#ff3bd4' : 'rgba(255,255,255,0.06)', color: (d.current.mode || 'generate_new') === mId ? '#fff' : '#b9b4d0', fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Input Type */}
+        {(d.current.mode || 'generate_new') === 'generate_new' && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { id: 'theme', label: 'Theme' },
+              { id: 'youtube', label: 'YouTube' },
+            ].map(({ id: tId, label }) => (
+              <button key={tId} onClick={() => useWorkflowStore.getState().updateNodeData(id, { inputType: tId })} style={{ flex: 1, padding: '3px 4px', borderRadius: 4, border: 'none', background: (d.current.inputType || 'theme') === tId ? '#63d4ff' : 'rgba(255,255,255,0.06)', color: (d.current.inputType || 'theme') === tId ? '#000' : '#b9b4d0', fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Theme input */}
+        {(d.current.mode || 'generate_new') === 'generate_new' && (d.current.inputType || 'theme') === 'theme' && (
+          <>
+            <div style={labelBase}>Theme / Description</div>
+            <textarea className="nodrag" value={d.current.theme || ''} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { theme: e.target.value })} placeholder="e.g., A funny song about a cat..." style={{ ...inputBase, resize: 'none', fontSize: 10, minHeight: 32, userSelect: 'text', WebkitUserSelect: 'text' }} />
+          </>
+        )}
+
+        {/* YouTube input */}
+        {(d.current.mode || 'generate_new') === 'generate_new' && (d.current.inputType || 'theme') === 'youtube' && (
+          <>
+            <div style={labelBase}>YouTube URL</div>
+            <input className="nodrag" value={d.current.youtubeUrl || ''} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { youtubeUrl: e.target.value })} placeholder="https://youtube.com/watch?v=..." style={{ ...inputBase, fontSize: 10 }} />
+          </>
+        )}
+
+        {/* Existing Lyrics input */}
+        {(d.current.mode || 'generate_new') === 'adapt_existing' && (
+          <>
+            <div style={labelBase}>Existing Lyrics</div>
+            <textarea className="nodrag" value={d.current.existingLyrics || ''} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { existingLyrics: e.target.value })} placeholder="Paste lyrics to transform..." style={{ ...inputBase, resize: 'none', fontSize: 10, minHeight: 32, userSelect: 'text', WebkitUserSelect: 'text' }} />
+          </>
+        )}
+
+        {/* Transformation */}
+        <div>
+          <div style={labelBase}>Transformation</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            {TRANSFORMATIONS.map(({ id: tId, label }) => (
+              <button key={tId} onClick={() => useWorkflowStore.getState().updateNodeData(id, { transformation: tId })} style={{ padding: '2px 5px', borderRadius: 3, border: 'none', background: (d.current.transformation || '') === tId ? '#ff3bd4' : 'rgba(255,255,255,0.06)', color: (d.current.transformation || '') === tId ? '#fff' : '#b9b4d0', fontSize: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Languages */}
+        <div>
+          <div style={labelBase}>Languages</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            {LANG_CODES.map((code) => (
+              <button key={code} onClick={() => toggleLang(code)} style={{ padding: '2px 5px', borderRadius: 3, border: 'none', background: (d.current.languages || ['en']).includes(code) ? '#63d4ff' : 'rgba(255,255,255,0.06)', color: (d.current.languages || ['en']).includes(code) ? '#000' : '#b9b4d0', fontSize: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase' }}>
+                {code}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Language Override */}
+        <div style={{ display: 'flex', gap: 3 }}>
+          {[
+            { id: '', label: 'Natural' },
+            { id: 'hindi_only', label: 'Hindi' },
+            { id: 'english_only', label: 'English' },
+            { id: 'hindi_english_mix', label: '50/50' },
+          ].map(({ id: oId, label }) => (
+            <button key={oId} onClick={() => useWorkflowStore.getState().updateNodeData(id, { langOverride: oId })} style={{ flex: 1, padding: '2px 3px', borderRadius: 3, border: 'none', background: (d.current.langOverride || '') === oId ? '#7c3aed' : 'rgba(255,255,255,0.06)', color: (d.current.langOverride || '') === oId ? '#fff' : '#b9b4d0', fontSize: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Structure */}
+        <div style={labelBase}>Structure</div>
+        <Select value={d.current.structure || 'Verse-Chorus'} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { structure: e.target.value })} options={STRUCTURES.map((s) => ({ value: s, label: s }))} />
+
+        {/* Result */}
+        {d.current.lyrics && !loading && (
+          <div style={{ flex: 1, minHeight: 0, borderRadius: 8 }}>
+            <textarea className="nodrag" value={d.current.lyrics} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { lyrics: e.target.value })} style={{ ...inputBase, resize: 'none', width: '100%', height: '100%', fontSize: 10, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', borderRadius: 8, boxSizing: 'border-box', userSelect: 'text', WebkitUserSelect: 'text' }} />
+          </div>
+        )}
+
+        {d.current.debug && !loading && (
+          <div style={{ fontSize: 9, color: '#93c5fd', padding: 4 }}>{d.current.debug}</div>
+        )}
+        {d.current.error && !loading && (
+          <div className="nodrag" style={{ fontSize: 9, color: '#ef4444', padding: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', userSelect: 'text', WebkitUserSelect: 'text' }}>{d.current.error}</div>
+        )}
+
+        {loading && (
+          <div style={{ flex: 1, minHeight: 0, position: 'relative', borderRadius: 8 }}>
+            <NodeSpinner variant="lyrics" />
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', flexShrink: 0 }}>
+          {loading ? (
+            <button onClick={handleCancel} style={{ padding: '2px 7px', borderRadius: 4, border: 'none', background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          ) : (
+            <button onClick={handleGenerate} style={{ padding: '2px 7px', borderRadius: 4, border: 'none', background: '#ff3bd4', color: '#fff', fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Generate</button>
+          )}
+          {d.current.lyrics && !loading && (
+            <>
+              <button onClick={handleGenerate} style={{ padding: '2px 7px', borderRadius: 4, border: 'none', background: '#ff3bd4', color: '#fff', fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Regen</button>
+              <button onClick={() => useWorkflowStore.getState().updateNodeData(id, { lyrics: '' })} style={{ padding: '2px 7px', borderRadius: 4, border: 'none', background: 'rgba(239,68,68,0.6)', color: '#fff', fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+            </>
+          )}
+        </div>
+      </div>
+    </BaseNode>
+  );
+});
+
 export {
+  BRollVideoCreatorNode,
+  BRollPromptCreatorNode,
   getConnectedInputs,
   LyricsGeneratorNode,
+  SmartLyricsNode,
   MusicGeneratorNode,
   CoverGeneratorNode,
   TTSGeneratorNode,

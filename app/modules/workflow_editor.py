@@ -21,10 +21,10 @@ WORKFLOW_NAMES = {
     "tts": "tts.json",
 }
 
+
 # Category mappings - supports multiple workflows per category
 WORKFLOW_CATEGORIES = {
     "ace_audio_cover": "cover-audio",
-    "ace_text2music": "text-to-audio",
     "ace_text2music_v2": "text-to-audio",
     "llm_gemma4_text_gen_v1": "text-to-audio",
     "prompt_creator": "text-to-audio",
@@ -40,12 +40,6 @@ WORKFLOW_METADATA = {
         "description": "Generate cover audio from reference audio",
         "version": "1.0",
         "default": True,
-    },
-    "ace_text2music": {
-        "display_name": "ACE Text to Music",
-        "description": "Generate music from text description",
-        "version": "1.0",
-        "default": False,
     },
     "ace_text2music_v2": {
         "display_name": "ACE Text2Music v2",
@@ -532,9 +526,6 @@ class WorkflowEditor:
         song_duration = int(params.get("duration", 60))
         raw_scene_dur = int(params.get("scene_duration_seconds", song_duration))
         self.set_node_input(workflow, "28:79", "scene_duration_seconds", min(raw_scene_dur, 60))
-        if "max_duration" in params:
-            # If specifically overridden by guts max_duration
-            pass
 
         # 2. Beat-Aligned Scene Durations node 28:80 (min/max durations, bias, preset)
         import random
@@ -563,16 +554,29 @@ class WorkflowEditor:
             self.set_node_input(workflow, "28:909", "model_file", model_file)
 
         # 5. Direct injection into templates and chat nodes to bypass ComfyUI caching
-        if "story_concept" in params:
-            self.set_node_input(workflow, "28:910", "section_2_text", params["story_concept"])
-        if "theme_style" in params:
-            self.set_node_input(workflow, "28:910", "section_3_text", params["theme_style"])
-            self.set_node_input(workflow, "28:849", "section_5_text", params["theme_style"])
+        is_b_roll = (workflow.get("28:920", {}).get("inputs", {}).get("use_srt_file") is False) or (workflow.get("939", {}).get("inputs", {}).get("folder_name") == "BRollPrompts")
+
+        if is_b_roll:
+            if "story_concept" in params:
+                self.set_node_input(workflow, "28:910", "section_1_text", params["story_concept"])
+            if "theme_style" in params:
+                self.set_node_input(workflow, "28:910", "section_2_text", params["theme_style"])
+            if "subject_scenes" in params:
+                self.set_node_input(workflow, "28:910", "section_3_text", params["subject_scenes"])
+        else:
+            if "story_concept" in params:
+                self.set_node_input(workflow, "28:910", "section_2_text", params["story_concept"])
+            if "theme_style" in params:
+                self.set_node_input(workflow, "28:910", "section_3_text", params["theme_style"])
+            if "subject_scenes" in params:
+                self.set_node_input(workflow, "28:910", "section_4_text", params["subject_scenes"])
+
         if "subject_scenes" in params:
-            self.set_node_input(workflow, "28:910", "section_4_text", params["subject_scenes"])
             self.set_node_input(workflow, "28:945", "user_input", params["subject_scenes"])
         if "lyrics" in params:
             self.set_node_input(workflow, "28:849", "section_2_text", params["lyrics"])
+        if "theme_style" in params and not is_b_roll:
+            self.set_node_input(workflow, "28:849", "section_5_text", params["theme_style"])
 
         if input_manager:
             if "lyrics" in params:
@@ -583,6 +587,12 @@ class WorkflowEditor:
                 input_manager.write_story_concept(params["story_concept"])
             if "subject_scenes" in params:
                 input_manager.write_subject_scenes(params["subject_scenes"])
+
+            if input_manager.base:
+                for node_id in ("798", "799", "801", "922"):
+                    if node_id in workflow:
+                        self.set_node_input(workflow, node_id, "use_custom_base_path", True)
+                        self.set_node_input(workflow, node_id, "custom_base_path", input_manager.base)
 
         return workflow
 

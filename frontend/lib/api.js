@@ -40,18 +40,11 @@ Structure: ${structure || 'Verse-Chorus'}
 Theme: ${theme || 'general'}
 Duration hint: ${duration || 30} seconds (about ${Math.round((duration || 30) / 3)} lines).
 Variation seed: ${seed || Math.floor(Math.random() * 999999)}`;
-  const res = await fetch('/api/ollama/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: OLLAMA_MODEL, prompt, system, options: { temperature: 0.8 } }),
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Ollama request failed');
-  }
-  const data = await res.json();
+  const { data } = await api.post('/api/ollama/generate', {
+    model: OLLAMA_MODEL, prompt, system, options: { temperature: 0.8 }
+  }, { timeout: 120000 });
   let lyricsText = data.response || data.text || '';
-  
+
   // Post-processing to strip metadata headers and introductory lines
   const cleanLyrics = (text) => {
     const lines = text.split('\n');
@@ -68,7 +61,7 @@ Variation seed: ${seed || Math.floor(Math.random() * 999999)}`;
         lower.startsWith('prompt:')
       );
     });
-    
+
     let cleanText = filteredLines.join('\n').trim();
     // Strip conversational intros before first bracket
     const firstTagIndex = cleanText.indexOf('[');
@@ -84,6 +77,10 @@ Variation seed: ${seed || Math.floor(Math.random() * 999999)}`;
 
   return { lyrics: cleanLyrics(lyricsText) };
 };
+
+// Smart lyrics generation (mixed language, parody, bhajan, etc.) via backend ComfyUI
+export const generateSmartLyrics = (params) =>
+  api.post('/api/smart-lyrics', params, { timeout: 120000 }).then((r) => r.data);
 
 export const generateText2Audio = (params, audioFile) => {
   if (audioFile) {
@@ -142,8 +139,8 @@ export const sendChat = (message, history = []) =>
 export const getHealth = () =>
   api.get('/api/health').then((r) => r.data);
 
-export const combineVideoAudio = (video_url, audio_url, project_path) =>
-  api.post('/api/generate/combine', { video_url, audio_url, project_path }).then((r) => r.data);
+export const combineVideoAudio = (video_url, audio_url, project_path, b_roll_urls) =>
+  api.post('/api/generate/combine', { video_url, audio_url, project_path, b_roll_urls }).then((r) => r.data);
 
 export const fetchLoras = () =>
   api.get('/api/models/loras').then((r) => r.data);

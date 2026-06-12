@@ -64,6 +64,9 @@ pipeline_runner: PipelineRunner = None
 #                 "message": str, "outputs": list, "error": str}
 video_jobs: dict[str, dict] = {}
 
+# Prevent GC of background asyncio tasks
+_background_tasks: set = set()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -78,7 +81,7 @@ async def lifespan(app: FastAPI):
     input_manager = InputManager(COMFYUI_INPUT_DIR)
     pipeline_runner = PipelineRunner(comfy_client, workflow_editor, input_manager)
 
-    available = comfy_client.is_available()
+    available = await comfy_client.is_available()
     logger.info(
         "ComfyUI at %s:%s — %s",
         COMFYUI_HOST,
@@ -119,6 +122,22 @@ class LyricsGenerateRequest(BaseModel):
     structure: str = "Verse-Chorus"
     genre: str = "pop"
     language: str = "en"
+    duration: int = 30
+    seed: int = -1
+
+
+class SmartLyricsRequest(BaseModel):
+    """Request for smart lyrics generation with mixed language, parody, bhajan, etc."""
+    mode: str = "generate_new"          # "generate_new" | "adapt_existing"
+    input_type: str = "theme"           # "theme" | "lyrics" | "youtube"
+    theme: str = ""                     # Theme/description text
+    existing_lyrics: str = ""           # Paste-in lyrics for adapt mode
+    youtube_url: str = ""               # YouTube URL for song-inspired generation
+    transformation: str = ""            # "parody", "bhajan", "love", etc.
+    genre: str = "pop"
+    languages: list[str] = Field(default_factory=lambda: ["en"])
+    language_override: str = ""         # "hindi_only" | "english_only" | "hindi_english_mix" | ""
+    structure: str = "Verse-Chorus"
     duration: int = 30
     seed: int = -1
 
@@ -240,7 +259,7 @@ def _scan_output_dir(output_dir: str, since: float, suffixes: tuple = None) -> l
 @app.get("/api/health")
 async def health_check() -> dict:
     """Health check endpoint — reports API and ComfyUI connectivity status."""
-    connected = comfy_client.is_available() if comfy_client else False
+    connected = await comfy_client.is_available() if comfy_client else False
     return {
         "status": "ok",
         "comfyui_connected": connected,
@@ -256,8 +275,8 @@ def _load_settings() -> dict:
         try:
             with open(SETTINGS_FILE, "r") as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to load settings: %s", e)
     return {}
 
 
@@ -308,6 +327,20 @@ async def generate_lyrics(req: LyricsGenerateRequest) -> dict:
         return {"status": "ok", "lyrics": lyrics}
     except Exception as e:
         logger.error("Lyrics generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/smart-lyrics")
+async def smart_lyrics(req: SmartLyricsRequest) -> dict:
+    """Smart lyrics generation with mixed language, parody, bhajan, etc."""
+    params = req.model_dump()
+    if params.get("seed", -1) < 0:
+        params["seed"] = int(time.time() * 1000) % (2**32)
+    try:
+        lyrics = await pipeline_runner.run_smart_lyrics(params)
+        return {"status": "ok", "lyrics": lyrics}
+    except Exception as e:
+        logger.error("Smart lyrics generation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -381,7 +414,12 @@ def _copy_assets_to_project(params: dict, urls: list[str]) -> list[str]:
         if local_path and os.path.exists(local_path):
             ext = os.path.splitext(local_path)[1].lower()
             if ext in (".mp4", ".webm", ".mov", ".avi", ".gif"):
-                subdir = "videos"
+                if params.get("is_combine"):
+                    subdir = "videos"
+                elif params.get("is_b_roll"):
+                    subdir = os.path.join("videos", "b-roll")
+                else:
+                    subdir = os.path.join("videos", "main")
             elif ext in (".wav", ".mp3", ".flac", ".ogg", ".m4a"):
                 subdir = "music"
             elif ext in (".png", ".jpg", ".jpeg", ".webp"):
@@ -414,7 +452,7 @@ class CombineRequest(BaseModel):
     video_url: Union[str, list[str]]
     audio_url: str
     project_path: Optional[str] = None
-
+    b_roll_urls: Optional[list[str]] = []
 
 @app.post("/api/generate/combine")
 async def generate_combine(req: CombineRequest):
@@ -458,6 +496,19 @@ async def generate_combine(req: CombineRequest):
     else:
         v_paths = [resolve_path(req.video_url)]
 
+    b_paths = [resolve_path(b) for b in (req.b_roll_urls or [])]
+    
+    logger.info(f"COMBINER CALLED! v_paths: {len(v_paths)} | b_paths: {len(b_paths)}")
+
+    import random
+    
+    def get_duration(path: str) -> float:
+        try:
+            cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', path]
+            return float(subprocess.check_output(cmd).decode().strip())
+        except Exception:
+            return 3.0  # Fallback duration if ffprobe fails
+
     a_path = resolve_path(req.audio_url)
     
     for vp in v_paths:
@@ -465,7 +516,35 @@ async def generate_combine(req: CombineRequest):
             raise HTTPException(status_code=400, detail=f"Video file not found: {vp}")
     if not os.path.exists(a_path):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {a_path}")
+
+    audio_duration = get_duration(a_path)
+    
+    # Calculate cuts to fill audio duration
+    final_cuts = []
+    current_time = 0.0
+    
+    # We must concatenate the main videos in sequence to preserve music sync!
+    for clip in v_paths:
+        clip_duration = get_duration(clip)
         
+        # If adding this clip exceeds audio, trim it to exact fit
+        if current_time + clip_duration > audio_duration:
+            clip_duration = max(0.1, audio_duration - current_time)
+            
+        final_cuts.append({
+            "path": clip,
+            "duration": clip_duration
+        })
+        
+        current_time += clip_duration
+        
+        if current_time >= audio_duration:
+            break
+            
+    # For now, we are concatenating the main videos in order to fix the bug where
+    # the combiner randomly chopped up the video. B-roll intercutting can be added later
+    # using a more complex ffmpeg overlay if needed.
+
     stem, ext = os.path.splitext(os.path.basename(v_paths[0]))
     out_name = f"{stem}_combined_{int(time.time())}{ext}"
     out_path = os.path.join(OUTPUT_DIR, out_name)
@@ -473,51 +552,47 @@ async def generate_combine(req: CombineRequest):
     if not shutil.which("ffmpeg"):
         raise HTTPException(status_code=500, detail="ffmpeg not found on server system")
         
-    if len(v_paths) > 1:
-        # Create concat text file
-        list_file = os.path.join(OUTPUT_DIR, f"concat_list_{int(time.time())}.txt")
-        with open(list_file, "w", encoding="utf-8") as f:
-            for vp in v_paths:
-                # Escape single quotes in path if any
-                safe_vp = vp.replace("'", "'\\''")
-                f.write(f"file '{safe_vp}'\n")
-        
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", list_file,
-            "-i", a_path,
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-shortest",
-            out_path
-        ]
-        
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        try:
-            os.remove(list_file)
-        except OSError:
-            pass
-    else:
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", v_paths[0],
-            "-i", a_path,
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-shortest",
-            out_path
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+    list_file = os.path.join(OUTPUT_DIR, f"concat_list_{int(time.time())}.txt")
+    with open(list_file, "w", encoding="utf-8") as f:
+        for cut in final_cuts:
+            safe_vp = cut["path"].replace("'", "'\\''")
+            f.write(f"file '{safe_vp}'\n")
+            f.write("inpoint 0.0\n")
+            f.write(f"outpoint {cut['duration']}\n")
+    
+    logger.info(f"FINAL CUTS LIST: {final_cuts}")
+    
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", list_file,
+        "-i", a_path,
+        "-filter_complex",
+        f"[0:v]fade=t=out:st={max(0, audio_duration - 2)}:d=2[vout];[1:a]afade=t=out:st={max(0, audio_duration - 2)}:d=2[aout]",
+        "-map", "[vout]",
+        "-map", "[aout]",
+        "-shortest",
+        out_path
+    ]
+    logger.info(f"FFMPEG CMD: {' '.join(cmd)}")
+    
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await proc.communicate()
+    try:
+        os.remove(list_file)
+    except OSError:
+        pass
         
     if proc.returncode != 0:
-        logger.error("FFmpeg merge failed: %s", proc.stderr)
-        raise HTTPException(status_code=500, detail=f"FFmpeg error: {proc.stderr}")
+        logger.error("FFmpeg merge failed: %s", stderr.decode())
+        raise HTTPException(status_code=500, detail=f"FFmpeg error: {stderr.decode()}")
         
     out_url = f"/output/{out_name}"
     if req.project_path:
-        _copy_assets_to_project({"project_path": req.project_path}, [out_url])
+        _copy_assets_to_project({"project_path": req.project_path, "is_combine": True}, [out_url])
     return {"status": "ok", "url": out_url, "video_url": out_url}
 
 
@@ -799,8 +874,14 @@ async def reveal_project_folder(req: OpenFolderRequest) -> dict:
     try:
         path = os.path.realpath(req.path)
         if os.path.isdir(path):
-            # Open file explorer on Windows
-            os.startfile(path)
+            import subprocess
+            import sys
+            if sys.platform == "win32":
+                os.startfile(path)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
             return {"status": "ok"}
         else:
             raise HTTPException(status_code=400, detail="Path is not a directory")
@@ -1072,19 +1153,21 @@ async def generate(
             "audio_cover, tts, prompt_creator, llm_audio_analysis, i2v, t2v, upscale, full_pipeline",
         )
 
-    # Handle file uploads
+    # Handle file uploads — sanitize filenames to prevent path traversal
     if audio_file is not None:
-        save_path = os.path.join(COMFYUI_INPUT_DIR, audio_file.filename)
+        safe_name = os.path.basename(audio_file.filename)
+        save_path = os.path.join(COMFYUI_INPUT_DIR, safe_name)
         content = await audio_file.read()
         with open(save_path, "wb") as f:
             f.write(content)
         params.setdefault("audio_path", save_path)
-        params.setdefault("audio_file", audio_file.filename)
+        params.setdefault("audio_file", safe_name)
 
     if image_files:
         image_paths = []
         for img in image_files:
-            save_path = os.path.join(COMFYUI_INPUT_DIR, img.filename)
+            safe_name = os.path.basename(img.filename)
+            save_path = os.path.join(COMFYUI_INPUT_DIR, safe_name)
             content = await img.read()
             with open(save_path, "wb") as f:
                 f.write(content)
@@ -1092,7 +1175,8 @@ async def generate(
         params.setdefault("images", image_paths)
 
     if video_file is not None:
-        save_path = os.path.join(COMFYUI_INPUT_DIR, video_file.filename)
+        safe_name = os.path.basename(video_file.filename)
+        save_path = os.path.join(COMFYUI_INPUT_DIR, safe_name)
         content = await video_file.read()
         with open(save_path, "wb") as f:
             f.write(content)
@@ -1187,8 +1271,11 @@ async def generate(
             
             # 3. Direct path fallback if ComfyUI caching or skew skipped writing a new file
             if not output_urls:
-                fallback_rel = "VRGDG_TEMP/TextFiles/ConceptPrompts/ConceptPrompts.txt"
-                fallback_path = os.path.join(OUTPUT_DIR, "VRGDG_TEMP", "TextFiles", "ConceptPrompts", "ConceptPrompts.txt")
+                if params.get("workflow") == "b_roll_prompt_creator":
+                    fallback_rel = "VRGDG_TEMP/TextFiles/BRollPrompts/BRollPrompts.txt"
+                else:
+                    fallback_rel = "VRGDG_TEMP/TextFiles/ConceptPrompts/ConceptPrompts.txt"
+                fallback_path = os.path.join(OUTPUT_DIR, os.path.normpath(fallback_rel))
                 if os.path.exists(fallback_path):
                     output_urls = [f"/output/{fallback_rel}"]
             
@@ -1432,14 +1519,14 @@ async def get_job_status(prompt_id: str) -> dict:
             running = queue.get("queue_running", [])
             pending = queue.get("queue_pending", [])
             is_running = any(
-                item.get("prompt_id") == prompt_id
+                item[1] == prompt_id
                 for item in (running or [])
-                if isinstance(item, dict)
+                if isinstance(item, list) and len(item) > 1
             )
             is_pending = any(
-                item.get("prompt_id") == prompt_id
+                item[1] == prompt_id
                 for item in (pending or [])
-                if isinstance(item, dict)
+                if isinstance(item, list) and len(item) > 1
             )
             return {
                 "prompt_id": prompt_id,
@@ -1819,7 +1906,9 @@ async def start_video_job(req: VideoStartRequest, request: Request) -> dict:
     }
 
     # Fire and forget — run the generation loop in the background
-    asyncio.create_task(_run_video_job(job_id, gen_type, params, base_url))
+    task = asyncio.create_task(_run_video_job(job_id, gen_type, params, base_url))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return {"status": "ok", "job_id": job_id, "message": "Video generation started"}
 
