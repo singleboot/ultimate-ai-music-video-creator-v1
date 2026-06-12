@@ -1188,5 +1188,135 @@ const YouTubeAudioNode = React.memo(function YouTubeAudioNode({ data, id, select
   );
 });
 
-export { GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode, VisualStylesNode, YouTubeAudioNode };
+
+const BRollFocusNode = React.memo(function BRollFocusNode({ data, id, selected }) {
+  const [enhancing, setEnhancing] = useState(false);
+  const [error, setError] = useState('');
+  const cancelled = useRef(false);
+
+  const handleEnhance = async () => {
+    const currentVal = data.text || '';
+    if (!currentVal.trim()) return;
+    cancelled.current = false;
+    setEnhancing(true);
+    setError('');
+    try {
+      const res = await fetch(`${API}/api/generate/enhance-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: currentVal, type: 'b_roll_focus', context: '', max_length: data.maxLength ?? 256 }),
+      });
+      if (cancelled.current) return;
+      if (!res.ok) throw new Error('Enhance failed');
+      const json = await res.json();
+      if (cancelled.current) return;
+      data.onUpdate?.(id, { text: json.enhanced });
+    } catch (err) {
+      if (cancelled.current) return;
+      setError(err.message);
+    } finally {
+      if (!cancelled.current) {
+        setEnhancing(false);
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    cancelled.current = true;
+    setEnhancing(false);
+    cancelJob('active').catch((err) => console.error("Cancel failed:", err));
+  };
+
+  return (
+    <BaseNode nodeId={id} data={data} title="B-Roll Focus (Text)" color="#10b981" selected={selected} outputHandles={[{ id: 'text', label: 'b_roll_text', icon: '📝' }]}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0, height: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <div style={labelBase}>B-Roll Focus</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 9, color: '#a09bb5' }}>Max L:</span>
+            <select
+              value={data.maxLength ?? 256}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => data.onUpdate?.(id, { maxLength: Number(e.target.value) })}
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(16,185,129,0.2)',
+                color: '#fff',
+                fontSize: 9,
+                borderRadius: 4,
+                outline: 'none',
+                padding: '2px 4px',
+                cursor: 'pointer',
+              }}
+            >
+              <option style={{ background: '#1c152a' }} value={64}>64</option>
+              <option style={{ background: '#1c152a' }} value={128}>128</option>
+              <option style={{ background: '#1c152a' }} value={256}>256</option>
+              <option style={{ background: '#1c152a' }} value={512}>512</option>
+              <option style={{ background: '#1c152a' }} value={1024}>1024</option>
+            </select>
+            {enhancing ? (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleCancel}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#ef4444',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={handleEnhance}
+                disabled={enhancing}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(16,185,129,0.4)',
+                  background: 'rgba(16,185,129,0.1)',
+                  color: '#10b981',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                🪄 Enhance
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <textarea
+            className="nodrag"
+            value={data.text || ''}
+            onChange={(e) => data.onUpdate?.(id, { text: e.target.value })}
+            placeholder="Enter B-Roll enhancement details..."
+            style={{ ...inputBase, resize: 'none', width: '100%', height: '100%', minHeight: 120, lineHeight: 1.5, fontSize: 11, userSelect: 'text', WebkitUserSelect: 'text' }}
+          />
+          {enhancing && <NodeSpinner variant="prompt" />}
+        </div>
+        {error && (
+          <div style={{ fontSize: 9, color: '#ef4444', marginTop: 2 }}>{error}</div>
+        )}
+      </div>
+    </BaseNode>
+  );
+});
+
+export {
+  BRollFocusNode, GenreNode, LanguageNode, ThemeNode, BPMNode, DurationNode, AudioFileNode, LyricsInputNode, SongSettingsNode, StoryConceptNode, StyleThemeNode, SubjectLocationsNode, GutsSettingsNode, VisualStylesNode, YouTubeAudioNode };
 

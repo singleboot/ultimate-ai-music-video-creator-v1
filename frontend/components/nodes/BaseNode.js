@@ -614,6 +614,11 @@ const HELP_PROCEDURES = {
     'Input keyword guidance or themes, then click "Generate".',
     'Outputs the final structured lyrics text.'
   ],
+  'Smart Lyrics Studio': [
+    'Generate creative lyrics with transformations (Parody, Bhajan, Love, etc.).',
+    'Select input type (Theme/YouTube), pick transformation, choose languages.',
+    'Click "Generate" to create lyrics, edit the result, then connect output to Music Generator.'
+  ],
   'Music Generator': [
     'Generates the audio track.',
     'Connect inputs: Song Settings (configuration), Lyrics Input/Generator (vocal reference), and optionally an Audio File.',

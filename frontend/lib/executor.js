@@ -98,6 +98,108 @@ export const API_MAP = {
     extractResult: (res) => res.concepts || res.prompts || res,
     resultKey: 'prompts',
   },
+  BRollPromptCreatorNode: {
+    api: generatePrompts,
+    buildParams: (inputs, data) => ({
+      workflow: 'b_roll_prompt_creator',
+      lyrics: '',
+      subject_scenes: inputs.b_roll_text || data.b_roll_text || '',
+    }),
+    extractResult: (res) => res.concepts || res.prompts || res,
+    resultKey: 'prompts',
+  },
+  BRollVideoCreatorNode: {
+    api: generateVideo,
+    buildParams: (inputs, data) => {
+      let conceptsFile = undefined;
+      if (inputs.prompts && typeof inputs.prompts === 'object') {
+        const outputs = inputs.prompts.outputs || [];
+        if (outputs.length > 0) {
+          const url = outputs[0];
+          const cleanUrl = url.includes('?') ? url.substring(0, url.indexOf('?')) : url;
+          conceptsFile = cleanUrl.includes('/output/') ? cleanUrl.substring(cleanUrl.indexOf('/output/') + 8) : cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
+        }
+      }
+      const loraParams = {};
+      for (let i = 1; i <= 20; i++) {
+        const loraKey = `lora_${i}`;
+        const strengthKey = `strength_${i}`;
+        const zLoraKey = `z_image_lora_${i}`;
+        const zStrengthKey = `z_image_strength_${i}`;
+        if (inputs[loraKey] !== undefined || data[loraKey] !== undefined) {
+          loraParams[loraKey] = inputs[loraKey] || data[loraKey];
+        }
+        if (inputs[strengthKey] !== undefined || data[strengthKey] !== undefined) {
+          loraParams[strengthKey] = inputs[strengthKey] ?? data[strengthKey];
+        }
+        if (inputs[zLoraKey] !== undefined || data[zLoraKey] !== undefined) {
+          loraParams[zLoraKey] = inputs[zLoraKey] || data[zLoraKey];
+        }
+        if (inputs[zStrengthKey] !== undefined || data[zStrengthKey] !== undefined) {
+          loraParams[zStrengthKey] = inputs[zStrengthKey] ?? data[zStrengthKey];
+        }
+      }
+
+      const allNodes = useWorkflowStore.getState().nodes;
+      const musicNode = allNodes.find(n => n.type === 'MusicGeneratorNode' && n.data?.audioUrl);
+      const audioFileNode = allNodes.find(n => n.type === 'AudioFileNode' && n.data?.audioUrl);
+      const youtubeNode = allNodes.find(n => n.type === 'YouTubeAudioNode' && n.data?.audioUrl);
+      const activeAudioUrl = musicNode?.data?.audioUrl || audioFileNode?.data?.audioUrl || youtubeNode?.data?.audioUrl || data.audioUrl || '';
+      const projectPath = useWorkflowStore.getState().projectPath;
+
+      return {
+        mode: 't2v',
+        is_b_roll: true,
+        audio_path: activeAudioUrl,
+        project_path: projectPath,
+        prompts: inputs.prompt || (inputs.prompts && typeof inputs.prompts === 'string' ? inputs.prompts : '') || data.prompt || '',
+        concepts_file: conceptsFile || inputs.concepts_file || data.concepts_file || undefined,
+        use_sage_attention: !!(inputs.use_sage_attention ?? data.use_sage_attention),
+        fps: inputs.fps ?? data.fps ?? 24,
+        resolution: inputs.resolution || data.resolution || '1024x576',
+        width: inputs.width ?? data.width ?? 1024,
+        height: inputs.height ?? data.height ?? 576,
+        seed: inputs.seed ?? data.seed ?? -1,
+        camera_motion: inputs.cameraMotion || data.cameraMotion || 'Static',
+        ltx_gguf: inputs.ltx_gguf || data.ltx_gguf || 'VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q4_0.gguf',
+        video_vae: inputs.video_vae || data.video_vae || 'LTX 2\\LTX23_video_vae_bf16.safetensors',
+        gemma_clip: inputs.gemma_clip || data.gemma_clip || 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors',
+        text_projection: inputs.text_projection || data.text_projection || 'ltx-2.3_text_projection_bf16.safetensors',
+        latent_upscaler: inputs.latent_upscaler || data.latent_upscaler || 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors',
+        audio_vae: inputs.audio_vae || data.audio_vae || 'LTX 2\\LTX23_audio_vae_bf16.safetensors',
+        z_image_turbo: inputs.z_image_turbo || data.z_image_turbo || 'IMAGE\\Z_image_turbo_bf16.safetensors',
+        z_image_clip: inputs.z_image_clip || data.z_image_clip || 'qwen_3_4b.safetensors',
+        z_image_vae: inputs.z_image_vae || data.z_image_vae || 'ae.safetensors',
+        supergemma_llm: inputs.supergemma_llm || data.supergemma_llm || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf',
+        use_custom_loras: inputs.use_custom_loras || data.use_custom_loras || 'OFF',
+        lora_trigger_word: !!(inputs.lora_trigger_word ?? data.lora_trigger_word),
+        lora_count: inputs.lora_count ?? data.lora_count ?? 1,
+        ltx_two_pass_mode: inputs.ltx_two_pass_mode || data.ltx_two_pass_mode || 'ON',
+        use_z_image_loras: inputs.use_z_image_loras || data.use_z_image_loras || 'OFF',
+        z_lora_trigger_word: !!(inputs.z_lora_trigger_word ?? data.z_lora_trigger_word),
+        z_image_lora_count: inputs.z_image_lora_count ?? data.z_image_lora_count ?? 1,
+        ...loraParams,
+        advanced_enabled: !!(inputs.advanced_enabled ?? data.advanced_enabled),
+        settings_count: inputs.settings_count ?? data.settings_count ?? 2,
+        selection_mode_all: inputs.selection_mode_all || data.selection_mode_all || 'Index-based',
+        camera_motion_list: inputs.camera_motion_list ?? data.camera_motion_list ?? 'Slow push-in\nTrack right\nTrack left\nDolly backward\nHandheld follow\nOver-the-shoulder push-in\nSlow pan right\nSlow pan left',
+        character_motion_list: inputs.character_motion_list ?? data.character_motion_list ?? 'Walks toward camera with confident swagger\nStrides across the frame\nTurns head to look directly at lens',
+        camera_motion_preset: inputs.camera_motion_preset || data.camera_motion_preset || 'Camera Motion',
+        character_motion_preset: inputs.character_motion_preset || data.character_motion_preset || 'Character Movement/Motion',
+        camera_motion_sel_mode: inputs.camera_motion_sel_mode || data.camera_motion_sel_mode || 'index',
+        character_motion_sel_mode: inputs.character_motion_sel_mode || data.character_motion_sel_mode || 'index',
+        camera_motion_items: inputs.camera_motion_items ?? data.camera_motion_items ?? 1,
+        character_motion_items: inputs.character_motion_items ?? data.character_motion_items ?? 1,
+        camera_motion_template: inputs.camera_motion_template || data.camera_motion_template || 'start with {item1} then follow with {item2}',
+        character_motion_template: inputs.character_motion_template || data.character_motion_template || 'start with {item1} then follow with {item2}',
+        use_remake_folder: inputs.use_remake_folder ?? data.use_remake_folder ?? false,
+        redo_prompt_number: inputs.redo_prompt_number ?? data.redo_prompt_number ?? 0,
+        overwrite_mode: inputs.overwrite_mode || data.overwrite_mode || 'backup',
+      };
+    },
+    extractResult: (res) => res.video_url || res.url || '',
+    resultKey: 'videoUrl',
+  },
   T2VGeneratorNode: {
     api: generateVideo,
     buildParams: (inputs, data) => {
@@ -293,11 +395,12 @@ export const API_MAP = {
     resultKey: 'imageUrl',
   },
   VideoAudioCombinerNode: {
-    api: (params) => combineVideoAudio(params.video_url, params.audio_url, params.project_path),
+    api: (params) => combineVideoAudio(params.video_url, params.audio_url, params.project_path, params.b_roll_urls),
     buildParams: (inputs, data) => ({
-      video_url: (inputs.outputs && Array.isArray(inputs.outputs) && inputs.outputs.length > 0) ? inputs.outputs : (inputs.videoUrl || data.videoUrl || ''),
+      video_url: inputs.main_video_urls || (inputs.outputs && Array.isArray(inputs.outputs) && inputs.outputs.length > 0 ? inputs.outputs : (inputs.videoUrl || data.videoUrl || '')),
       audio_url: inputs.audioUrl || data.audioUrl || '',
       project_path: useWorkflowStore.getState().projectPath,
+      b_roll_urls: inputs.b_roll_urls || [],
     }),
     extractResult: (res) => res.video_url || res.url || '',
     resultKey: 'videoUrl',
@@ -404,7 +507,16 @@ export function gatherInputs(nodeId, nodes, edges, nodeMap) {
       inputs._analyzer = { ...sourceData };
     }
 
-    if (targetType === 'PromptCreatorNode') {
+    if (targetType === 'VideoAudioCombinerNode') {
+      const handle = edge.targetHandle;
+      if (handle === 'input-0') {
+        inputs.main_video_urls = sourceData.outputs && Array.isArray(sourceData.outputs) && sourceData.outputs.length > 0 ? sourceData.outputs : (sourceData.videoUrl ? [sourceData.videoUrl] : []);
+      } else if (handle === 'input-1') {
+        inputs.audioUrl = sourceData.audioUrl || '';
+      } else if (handle === 'input-2') {
+        inputs.b_roll_urls = sourceData.outputs && Array.isArray(sourceData.outputs) && sourceData.outputs.length > 0 ? sourceData.outputs : (sourceData.videoUrl ? [sourceData.videoUrl] : []);
+      }
+    } else if (targetType === 'PromptCreatorNode') {
       const handle = edge.targetHandle;
       if (handle === 'input-1') {
         inputs.story_concept = sourceData.story_concept || sourceData.story || sourceData.text || '';

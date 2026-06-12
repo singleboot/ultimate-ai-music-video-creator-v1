@@ -32,7 +32,7 @@ class InputManager:
         Returns:
             The absolute path to the written file.
         """
-        folder = os.path.join(self.base, subfolder)
+        folder = os.path.join(self.base, "VRGDG_TEMP", "TextFiles", subfolder)
         os.makedirs(folder, exist_ok=True)
         filepath = os.path.join(folder, filename)
 
@@ -117,7 +117,7 @@ class InputManager:
         ]
 
         for key, subfolder, filename in mappings:
-            filepath = os.path.join(self.base, subfolder, filename)
+            filepath = os.path.join(self.base, "VRGDG_TEMP", "TextFiles", subfolder, filename)
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     result[key] = f.read()
