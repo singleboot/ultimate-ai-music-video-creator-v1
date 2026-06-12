@@ -306,6 +306,7 @@ const LyricsGeneratorNode = React.memo(function LyricsGeneratorNode({ data, id, 
           value={data.structure || 'Verse-Chorus'}
           onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { structure: e.target.value })}
           options={STRUCTURES.map((s) => ({ value: s, label: s }))}
+          allowCustom
         />
         {clicked && !data.lyrics && !loading && (
           <div style={{ fontSize: 9, color: '#fbbf24', padding: 4 }}>clicked! fetching from Ollama...</div>
@@ -739,6 +740,7 @@ const CoverGeneratorNode = React.memo(function CoverGeneratorNode({ data, id, se
             { value: 'duet', label: 'Duet (Male + Female)' },
             { value: 'chorus', label: 'Chorus (Group)' }
           ]}
+          allowCustom
         />
         <div style={labelBase}>Lyrics (optional)</div>
         <textarea
@@ -810,6 +812,7 @@ const TTSGeneratorNode = React.memo(function TTSGeneratorNode({ data, id, select
           value={d.current.voice || 'female_warm'}
           onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { voice: e.target.value })}
           options={VOICE_PRESETS.map((v) => ({ value: v.id, label: v.name }))}
+          allowCustom
         />
         <div style={outputContainerBase}>
           {d.current.audioUrl && (
@@ -909,6 +912,7 @@ const LLMTextGenNode = React.memo(function LLMTextGenNode({ data, id, selected }
             { value: 'instrument', label: 'Instrument / Style' },
             { value: 'lyrics', label: 'Lyrics / Transcription' }
           ]}
+          allowCustom
         />
         <div style={labelBase}>Custom Prompt (optional)</div>
         <textarea
@@ -1326,6 +1330,7 @@ const T2VGeneratorNode = React.memo(function T2VGeneratorNode({ data, id, select
           value={d.current.resolution || '1024x576'}
           onChange={(e) => updateNodeData({ resolution: e.target.value })}
           options={['512x512', '768x768', '1024x576', '1280x720', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
+          allowCustom
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
@@ -1573,6 +1578,7 @@ const I2VGeneratorNode = React.memo(function I2VGeneratorNode({ data, id, select
           value={d.current.resolution || '1024x576'}
           onChange={(e) => updateNodeData({ resolution: e.target.value })}
           options={['512x512', '768x768', '1024x576', '1280x720', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
+          allowCustom
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
@@ -1675,6 +1681,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             { value: 'VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q4_0.gguf', label: 'ltx-2.3-22b-distilled-1.1-Q4_0.gguf' },
             { value: 'VIDEO\\LTX\\ltx-2.3-22b-distilled-1.1-Q3_K_M.gguf', label: 'ltx-2.3-22b-distilled-1.1-Q3_K_M.gguf' }
           ]}
+          allowCustom
         />
       </div>
 
@@ -1685,6 +1692,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.video_vae || 'LTX 2\\LTX23_video_vae_bf16.safetensors'}
             onChange={(e) => updateNodeData({ video_vae: e.target.value })}
             options={[{ value: 'LTX 2\\LTX23_video_vae_bf16.safetensors', label: 'LTX23_video_vae_bf16.safetensors' }]}
+            allowCustom
           />
         </div>
         <div style={{ flex: 1 }}>
@@ -1696,6 +1704,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
               { value: 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors', label: 'gemma-3-12b-fidelity...' },
               { value: 'gemma4_e4b_it_fp8_scaled.safetensors', label: 'gemma4_e4b_it_fp8_scaled...' }
             ]}
+            allowCustom
           />
         </div>
       </div>
@@ -1707,6 +1716,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.text_projection || 'ltx-2.3_text_projection_bf16.safetensors'}
             onChange={(e) => updateNodeData({ text_projection: e.target.value })}
             options={[{ value: 'ltx-2.3_text_projection_bf16.safetensors', label: 'ltx-2.3_text_projection_bf16...' }]}
+            allowCustom
           />
         </div>
         <div style={{ flex: 1 }}>
@@ -1715,6 +1725,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.latent_upscaler || 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors'}
             onChange={(e) => updateNodeData({ latent_upscaler: e.target.value })}
             options={[{ value: 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors', label: 'ltx-2.3-spatial-upscaler-x2...' }]}
+            allowCustom
           />
         </div>
       </div>
@@ -1726,6 +1737,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.audio_vae || 'LTX 2\\LTX23_audio_vae_bf16.safetensors'}
             onChange={(e) => updateNodeData({ audio_vae: e.target.value })}
             options={[{ value: 'LTX 2\\LTX23_audio_vae_bf16.safetensors', label: 'LTX23_audio_vae_bf16...' }]}
+            allowCustom
           />
         </div>
         <div style={{ flex: 1 }}>
@@ -1734,6 +1746,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.z_image_turbo || 'IMAGE\\Z_image_turbo_bf16.safetensors'}
             onChange={(e) => updateNodeData({ z_image_turbo: e.target.value })}
             options={[{ value: 'IMAGE\\Z_image_turbo_bf16.safetensors', label: 'Z_image_turbo_bf16.safetensors' }]}
+            allowCustom
           />
         </div>
       </div>
@@ -1745,6 +1758,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.z_image_clip || 'qwen_3_4b.safetensors'}
             onChange={(e) => updateNodeData({ z_image_clip: e.target.value })}
             options={[{ value: 'qwen_3_4b.safetensors', label: 'qwen_3_4b.safetensors' }]}
+            allowCustom
           />
         </div>
         <div style={{ flex: 1 }}>
@@ -1753,6 +1767,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
             value={d.current.z_image_vae || 'ae.safetensors'}
             onChange={(e) => updateNodeData({ z_image_vae: e.target.value })}
             options={[{ value: 'ae.safetensors', label: 'ae.safetensors' }]}
+            allowCustom
           />
         </div>
       </div>
@@ -1763,6 +1778,7 @@ const VideoWorkflowSettingsNode = React.memo(function VideoWorkflowSettingsNode(
           value={d.current.supergemma_llm || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf'}
           onChange={(e) => updateNodeData({ supergemma_llm: e.target.value })}
           options={[{ value: 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf', label: 'supergemma4-26b-uncensored-fast-v2...' }]}
+          allowCustom
         />
       </div>
     </>
@@ -2623,6 +2639,7 @@ const VideoUpscalerNode = React.memo(function VideoUpscalerNode({ data, id, sele
             { value: '1080', label: '1080p (FHD)' },
             { value: '2160', label: '4K (UHD)' }
           ]}
+          allowCustom
         />
 
         <div style={{ display: 'flex', gap: 4 }}>
@@ -2997,6 +3014,7 @@ const BRollVideoCreatorNode = React.memo(function BRollVideoCreatorNode({ data, 
           value={d.current.resolution || '1024x576'}
           onChange={(e) => updateNodeData({ is_b_roll: true,  resolution: e.target.value })}
           options={['512x512', '768x768', '1024x576', '1280x720', '1024x1024', '1920x1080'].map((r) => ({ value: r, label: r }))}
+          allowCustom
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
@@ -3228,7 +3246,7 @@ const SmartLyricsNode = React.memo(function SmartLyricsNode({ data, id, selected
 
         {/* Structure */}
         <div style={labelBase}>Structure</div>
-        <Select value={d.current.structure || 'Verse-Chorus'} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { structure: e.target.value })} options={STRUCTURES.map((s) => ({ value: s, label: s }))} />
+        <Select value={d.current.structure || 'Verse-Chorus'} onChange={(e) => useWorkflowStore.getState().updateNodeData(id, { structure: e.target.value })} options={STRUCTURES.map((s) => ({ value: s, label: s }))} allowCustom />
 
         {/* Result */}
         {d.current.lyrics && !loading && (

@@ -445,7 +445,7 @@ const btnBase = {
   gap: 2,
 };
 
-function Select({ value, onChange, options, style }) {
+function Select({ value, onChange, options, style, allowCustom }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef(null);
@@ -458,9 +458,14 @@ function Select({ value, onChange, options, style }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  const filtered = options.filter(opt =>
+  const isCustom = allowCustom && value && !options.some(o => o.value === value);
+  const allOptions = allowCustom ? [...options, { value: '__custom__', label: '+ Custom...' }] : options;
+
+  const filtered = allOptions.filter(opt =>
     (opt.label || opt.value || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  const displayText = isCustom ? value : (options.find((o) => o.value === value)?.label || value);
 
   return (
     <div ref={ref} style={{ position: 'relative', ...style }}>
@@ -478,12 +483,33 @@ function Select({ value, onChange, options, style }) {
         }}
       >
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10 }}>
-          {options.find((o) => o.value === value)?.label || value}
+          {displayText}
         </span>
         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#b9b4d0" strokeWidth="2" style={{ flexShrink: 0 }}>
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
+      {isCustom && (
+        <div style={{ padding: '4px 0 2px' }} onClick={(e) => e.stopPropagation()}>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange?.({ target: { value: e.target.value } })}
+            onPointerDown={(e) => e.stopPropagation()}
+            placeholder="Type custom value..."
+            style={{
+              width: '100%',
+              padding: '3px 6px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(176,38,255,0.3)',
+              borderRadius: 4,
+              color: '#b026ff',
+              fontSize: 10,
+              outline: 'none',
+            }}
+          />
+        </div>
+      )}
       {open && (
         <div
           style={{
@@ -501,7 +527,7 @@ function Select({ value, onChange, options, style }) {
             overflow: 'hidden',
           }}
         >
-          {options.length > 4 && (
+          {allOptions.length > 4 && (
             <div style={{ padding: 4, borderBottom: '1px solid rgba(176,38,255,0.15)' }} onClick={(e) => e.stopPropagation()}>
               <input
                 type="text"
@@ -533,7 +559,7 @@ function Select({ value, onChange, options, style }) {
                   style={{
                     padding: '5px 8px',
                     fontSize: 10,
-                    color: opt.value === value ? '#b026ff' : '#e0dce6',
+                    color: opt.value === value ? '#b026ff' : opt.value === '__custom__' ? '#10b981' : '#e0dce6',
                     cursor: 'pointer',
                     background: opt.value === value ? 'rgba(176,38,255,0.1)' : 'transparent',
                     transition: 'background 0.1s',

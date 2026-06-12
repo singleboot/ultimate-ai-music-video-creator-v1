@@ -92,6 +92,7 @@ const SongSettingsNode = React.memo(function SongSettingsNode({ data, id, select
           value={ss.language || 'en'}
           onChange={(e) => update({ language: e.target.value })}
           options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))}
+          allowCustom
         />
 
         <div style={labelBase}>Time Signature</div>
@@ -99,6 +100,7 @@ const SongSettingsNode = React.memo(function SongSettingsNode({ data, id, select
           value={ss.timeSignature || '4'}
           onChange={(e) => update({ timeSignature: e.target.value })}
           options={TIMESIGS}
+          allowCustom
         />
 
         <div style={labelBase}>Key / Scale</div>
@@ -106,6 +108,7 @@ const SongSettingsNode = React.memo(function SongSettingsNode({ data, id, select
           value={ss.keyscale || ''}
           onChange={(e) => update({ keyscale: e.target.value })}
           options={[{ value: '', label: 'Auto (ComfyUI default)' }, ...ALL_SCALES.map((s) => ({ value: s, label: s }))]}
+          allowCustom
         />
       </div>
     </BaseNode>
@@ -253,6 +256,7 @@ const LanguageNode = React.memo(function LanguageNode({ data, id, selected }) {
         value={data.language || 'en'}
         onChange={(e) => data.onUpdate?.(id, { language: e.target.value })}
         options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))}
+        allowCustom
       />
     </BaseNode>
   );
@@ -908,6 +912,7 @@ const GutsSettingsNode = React.memo(function GutsSettingsNode({ data, id, select
           value={gs.durationPreset || 'varied_no_repeat'}
           onChange={(e) => update({ durationPreset: e.target.value })}
           options={DURATION_PRESETS}
+          allowCustom
         />
         <div style={descStyle}>impact_weighted follows strongest beats. varied_no_repeat avoids similar scene lengths back-to-back. clustered_no_repeat keeps lengths closer together while still avoiding repeats.</div>
 
@@ -916,6 +921,7 @@ const GutsSettingsNode = React.memo(function GutsSettingsNode({ data, id, select
           value={gs.whisperLanguage || 'auto'}
           onChange={(e) => update({ whisperLanguage: e.target.value })}
           options={WHISPER_LANGUAGES}
+          allowCustom
         />
         <div style={descStyle}>Language hint for Whisper transcription. Use auto to let Whisper detect it, or pick the song language for more consistent lyric timing.</div>
 
@@ -932,6 +938,7 @@ const GutsSettingsNode = React.memo(function GutsSettingsNode({ data, id, select
           value={gs.llmModel || 'supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf'}
           onChange={(e) => update({ llmModel: e.target.value })}
           options={LLM_MODELS}
+          allowCustom
         />
         <div style={descStyle}>Model used by the Part 1 prompt creator LLM.</div>
       </div>
